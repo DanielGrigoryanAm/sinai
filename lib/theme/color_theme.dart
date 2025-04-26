@@ -1,25 +1,26 @@
 import 'package:flutter/material.dart';
 
+@immutable
 class ColorTheme {
   final Color background;
   final Color primary;
-  final Color secondary;
+  final Color green;
   final Color textPrimary;
   final Color textSecondary;
 
   const ColorTheme({
     required this.background,
     required this.primary,
-    required this.secondary,
+    required this.green,
     required this.textPrimary,
     required this.textSecondary,
   });
 }
 
 const lightColorTheme = ColorTheme(
-  background: Color.fromARGB(255, 244, 241, 225),
+  background: Color.fromARGB(255, 255, 255, 255),
   primary: Color.fromARGB(255, 0, 0, 0),
-  secondary: Color.fromARGB(255, 209, 210, 212),
+  green: Color.fromARGB(255, 106, 255, 109),
   textPrimary: Colors.black,
   textSecondary: Color.fromARGB(255, 138, 138, 138),
 );
@@ -27,7 +28,7 @@ const lightColorTheme = ColorTheme(
 const darkColorTheme = ColorTheme(
   background: Colors.black,
   primary: Colors.blue,
-  secondary: Colors.blueAccent,
+  green: Colors.blueAccent,
   textPrimary: Colors.white,
   textSecondary: Colors.grey,
 );

@@ -1,10 +1,38 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:sinay/theme/app_typography_extension.dart';
+import 'package:sinay/theme/color_theme.dart';
 
-class CustomAppBar extends StatelessWidget {
-  const CustomAppBar({super.key});
+class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final bool showBackButton;
+  final String? title;
+
+  const CustomAppBar({
+    super.key,
+    this.showBackButton = false,
+    this.title,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container();
+    return AppBar(
+      backgroundColor: context.colorTheme.background,
+      leading: showBackButton
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => context.router.pop(),
+            )
+          : null,
+      title: title != null
+          ? Text(
+              title!,
+              style: context.textTheme.titleLarge,
+            )
+          : null,
+      centerTitle: true,
+    );
   }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
