@@ -1,11 +1,11 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-import 'package:sinay/common/custom_app_bar.dart';
-import 'package:sinay/common/custom_button.dart';
-import 'package:sinay/gen/assets.gen.dart';
-import 'package:sinay/router/app_router.dart';
-import 'package:sinay/theme/app_typography_extension.dart';
-import 'package:sinay/theme/color_theme.dart';
+import 'package:sinai/common/custom_app_bar.dart';
+import 'package:sinai/common/custom_button.dart';
+import 'package:sinai/gen/assets.gen.dart';
+import 'package:sinai/router/app_router.dart';
+import 'package:sinai/theme/app_typography_extension.dart';
+import 'package:sinai/theme/color_theme.dart';
 
 @RoutePage()
 class OnboardingScreen extends StatefulWidget {

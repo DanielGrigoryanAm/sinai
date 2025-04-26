@@ -1,7 +1,7 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:sinay/pages/home/home_screen.dart';
-import 'package:sinay/pages/onboarding/onboarding_screen.dart';
-import 'package:sinay/pages/profile/profile_screen.dart';
+import 'package:sinai/pages/home/home_screen.dart';
+import 'package:sinai/pages/onboarding/onboarding_screen.dart';
+import 'package:sinai/pages/profile/profile_screen.dart';
 
 part 'app_router.gr.dart';
 

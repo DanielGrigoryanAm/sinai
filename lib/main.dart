@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sinay/router/app_router.dart';
-import 'package:sinay/theme/text_theme.dart';
+import 'package:sinai/router/app_router.dart';
+import 'package:sinai/theme/text_theme.dart';
 
 final appRouter = AppRouter();
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:sinay/theme/app_typography_extension.dart';
-import 'package:sinay/theme/color_theme.dart';
+import 'package:sinai/theme/app_typography_extension.dart';
+import 'package:sinai/theme/color_theme.dart';
 
 class CustomButton extends StatelessWidget {
   const CustomButton({
