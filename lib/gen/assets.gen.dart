@@ -16,8 +16,12 @@ class $AssetsImagesGen {
   AssetGenImage get mountain =>
       const AssetGenImage('assets/images/mountain.png');
 
+  /// File path: assets/images/mountain_resized.png
+  AssetGenImage get mountainResized =>
+      const AssetGenImage('assets/images/mountain_resized.png');
+
   /// List of all assets
-  List<AssetGenImage> get values => [mountain];
+  List<AssetGenImage> get values => [mountain, mountainResized];
 }
 
 class Assets {

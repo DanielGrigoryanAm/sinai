@@ -24,7 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
     await Future.delayed(Duration(seconds: 1));
     if (mounted) {
-      context.router.replace(HomeRoute());
+      context.router.replace(LoginRoute());
     }
   }
 

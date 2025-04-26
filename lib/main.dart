@@ -14,15 +14,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      theme: ThemeData(
-        extensions: <ThemeExtension<dynamic>>[
-          AppTypography.defaultTypography(),
-          
-        ],
-      ),
       darkTheme: ThemeData.dark(),
       themeMode: ThemeMode.system,
       routerConfig: appRouter.config(),
+      theme: ThemeData(
+        extensions: <ThemeExtension<dynamic>>[
+          AppTypography.defaultTypography(),
+        ],
+      ),
     );
   }
 }

@@ -20,7 +20,7 @@ class ColorTheme {
 const lightColorTheme = ColorTheme(
   background: Color.fromARGB(255, 255, 255, 255),
   primary: Color.fromARGB(255, 0, 0, 0),
-  green: Color.fromARGB(255, 106, 255, 109),
+  green: Color.fromARGB(255, 26, 46, 118),
   textPrimary: Colors.black,
   textSecondary: Color.fromARGB(255, 138, 138, 138),
 );

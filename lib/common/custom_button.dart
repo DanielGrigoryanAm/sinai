@@ -17,7 +17,7 @@ class CustomButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 50,
+        height: 56,
         decoration: BoxDecoration(
           color: context.colorTheme.green,
           borderRadius: BorderRadius.circular(50),
@@ -25,7 +25,8 @@ class CustomButton extends StatelessWidget {
         child: Center(
           child: Text(
             text,
-            style: context.textTheme.titleSmall,
+            style: context.textTheme.titleSmall
+                .copyWith(color: context.colorTheme.background),
           ),
         ),
       ),

@@ -12,9 +12,7 @@ class HomeScreen extends StatelessWidget {
       appBar: CustomAppBar(
         title: 'Home',
       ),
-      body: Container(
-        color: Colors.blue,
-      ),
+      body: Container(),
     );
   }
 }
