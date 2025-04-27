@@ -12,7 +12,9 @@ class HomeScreen extends StatelessWidget {
       appBar: CustomAppBar(
         title: 'Home',
       ),
-      body: Container(),
+      body: Container(
+        
+      ),
     );
   }
 }

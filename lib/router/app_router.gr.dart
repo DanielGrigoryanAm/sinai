@@ -12,18 +12,42 @@ part of 'app_router.dart';
 
 /// generated route for
 /// [CheckCodeScreen]
-class CheckCodeRoute extends PageRouteInfo<void> {
-  const CheckCodeRoute({List<PageRouteInfo>? children})
-    : super(CheckCodeRoute.name, initialChildren: children);
+class CheckCodeRoute extends PageRouteInfo<CheckCodeRouteArgs> {
+  CheckCodeRoute({
+    Key? key,
+    required String verificationId,
+    List<PageRouteInfo>? children,
+  }) : super(
+         CheckCodeRoute.name,
+         args: CheckCodeRouteArgs(key: key, verificationId: verificationId),
+         initialChildren: children,
+       );
 
   static const String name = 'CheckCodeRoute';
 
   static PageInfo page = PageInfo(
     name,
     builder: (data) {
-      return const CheckCodeScreen();
+      final args = data.argsAs<CheckCodeRouteArgs>();
+      return CheckCodeScreen(
+        key: args.key,
+        verificationId: args.verificationId,
+      );
     },
   );
+}
+
+class CheckCodeRouteArgs {
+  const CheckCodeRouteArgs({this.key, required this.verificationId});
+
+  final Key? key;
+
+  final String verificationId;
+
+  @override
+  String toString() {
+    return 'CheckCodeRouteArgs{key: $key, verificationId: $verificationId}';
+  }
 }
 
 /// generated route for

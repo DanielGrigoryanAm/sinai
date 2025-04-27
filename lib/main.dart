@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sinai/auth/bloc/auth_bloc.dart';
+import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/text_theme.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 final appRouter = AppRouter();
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -13,14 +19,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      darkTheme: ThemeData.dark(),
-      themeMode: ThemeMode.system,
-      routerConfig: appRouter.config(),
-      theme: ThemeData(
-        extensions: <ThemeExtension<dynamic>>[
-          AppTypography.defaultTypography(),
-        ],
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => AuthBloc(authRepository: AuthRepository()),
+        ),
+      ],
+      child: MaterialApp.router(
+        darkTheme: ThemeData.dark(),
+        themeMode: ThemeMode.system,
+        routerConfig: appRouter.config(),
+        theme: ThemeData(
+          extensions: <ThemeExtension<dynamic>>[
+            AppTypography.defaultTypography(),
+          ],
+        ),
       ),
     );
   }

@@ -61,7 +61,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               SizedBox(height: 100),
-              if (isLoading) CircularProgressIndicator()
+              if (isLoading) CircularProgressIndicator(),
             ],
           ),
         ),

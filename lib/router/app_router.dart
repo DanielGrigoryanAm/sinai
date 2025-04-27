@@ -1,4 +1,5 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:flutter/material.dart';
 import 'package:sinai/pages/home/home_screen.dart';
 import 'package:sinai/pages/onboarding/check_code_screen.dart';
 import 'package:sinai/pages/onboarding/login_screen.dart';
