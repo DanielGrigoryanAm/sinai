@@ -19,3 +19,12 @@ class VerifySmsCode extends AuthEvent {
 
   const VerifySmsCode(this.smsCode, this.verificationId);
 }
+
+class PhoneNumberSentEvent extends AuthEvent {
+  final String verificationId;
+
+  const PhoneNumberSentEvent(this.verificationId);
+
+  @override
+  List<Object?> get props => [verificationId];
+}

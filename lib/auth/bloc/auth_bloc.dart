@@ -9,16 +9,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({required this.authRepository}) : super(AuthInitial()) {
     on<SendPhoneNumber>(_onSendPhoneNumber);
     on<VerifySmsCode>(_onVerifySmsCode);
+    on<PhoneNumberSentEvent>((event, emit) => emit(PhoneNumberSent(event.verificationId)));
   }
 
   Future<void> _onSendPhoneNumber(
-      SendPhoneNumber event, Emitter<AuthState> emit) async {
+    SendPhoneNumber event,
+    Emitter<AuthState> emit,
+  ) async {
     emit(AuthLoading());
     try {
       await authRepository.sendPhoneNumber(
         phoneNumber: event.phoneNumber,
         onCodeSent: (verificationId) {
-          emit(PhoneNumberSent(verificationId));
+          add(PhoneNumberSentEvent(verificationId));
         },
       );
     } catch (e) {
@@ -27,7 +30,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onVerifySmsCode(
-      VerifySmsCode event, Emitter<AuthState> emit) async {
+    VerifySmsCode event,
+    Emitter<AuthState> emit,
+  ) async {
     emit(AuthLoading());
     try {
       await authRepository.verifySmsCode(

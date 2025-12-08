@@ -13,7 +13,7 @@ class AuthRepository {
         await _firebaseAuth.signInWithCredential(credential);
       },
       verificationFailed: (FirebaseAuthException e) {
-        throw Exception(e.message);
+        throw Exception('>>>>${e.message}');
       },
       codeSent: (String verificationId, int? resendToken) {
         onCodeSent(verificationId);
