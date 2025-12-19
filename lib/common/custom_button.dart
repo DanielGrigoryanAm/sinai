@@ -7,10 +7,12 @@ class CustomButton extends StatelessWidget {
     super.key,
     required this.text,
     required this.onTap,
+    this.isLoading = false,
   });
 
   final String text;
   final VoidCallback onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -19,15 +21,17 @@ class CustomButton extends StatelessWidget {
       child: Container(
         height: 56,
         decoration: BoxDecoration(
-          color: context.colorTheme.green,
+          color: context.colorTheme.secondary,
           borderRadius: BorderRadius.circular(50),
         ),
         child: Center(
-          child: Text(
-            text,
-            style: context.textTheme.titleSmall
-                .copyWith(color: context.colorTheme.background),
-          ),
+          child: isLoading
+              ? CircularProgressIndicator()
+              : Text(
+                  text,
+                  style: context.textTheme.titleSmall
+                      .copyWith(color: context.colorTheme.backgroundPrimary),
+                ),
         ),
       ),
     );

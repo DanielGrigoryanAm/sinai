@@ -4,7 +4,6 @@ import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
 import 'package:sinai/gen/assets.gen.dart';
 import 'package:sinai/router/app_router.dart';
-import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 @RoutePage()
@@ -17,6 +16,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   bool isLoading = false;
+  final TextEditingController _nameController = TextEditingController();
 
   void _onStart() async {
     setState(() {
@@ -24,7 +24,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
     await Future.delayed(Duration(seconds: 1));
     if (mounted) {
-      context.router.replace(LoginRoute());
+      context.router.replace(StartChatRoute());
     }
   }
 
@@ -34,31 +34,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       appBar: CustomAppBar(
         title: 'Wellcome to Sinai',
       ),
-      backgroundColor: context.colorTheme.background,
+      backgroundColor: context.colorTheme.backgroundSecondary,
       body: Padding(
         padding: const EdgeInsets.only(top: 100),
-        child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             children: [
               Container(
                 decoration: BoxDecoration(
-                  color: context.colorTheme.green,
+                  color: context.colorTheme.secondary,
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Assets.images.mountain.image(height: 200),
               ),
               SizedBox(height: 50),
-              Text(
-                'Start chatting',
-                style: context.textTheme.titleSmall,
+              TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(50)),
+                  hintText: 'Enter your name',
+                ),
               ),
               SizedBox(height: 100),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 80.0),
-                child: CustomButton(
-                  text: 'Start',
-                  onTap: () => _onStart(),
-                ),
+              CustomButton(
+                text: 'Start',
+                onTap: () => _onStart(),
               ),
               SizedBox(height: 100),
               if (isLoading) CircularProgressIndicator(),
