@@ -42,6 +42,15 @@ class MessagesSubscribeEvent extends ChatEvent {
   List<Object> get props => [chatCode];
 }
 
+class SetUserNameEvent extends ChatEvent {
+  final String name;
+
+  const SetUserNameEvent(this.name);
+
+  @override
+  List<Object> get props => [name];
+}
+
 /// internal event
 class _MessagesUpdatedInternal extends ChatEvent {
   final List<ChatMessage> messages;

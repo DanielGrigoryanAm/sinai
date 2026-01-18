@@ -18,9 +18,28 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<JoinChatEvent>(_onJoinChat);
     on<SendMessageEvent>(_onSendMessage);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
+    on<SetUserNameEvent>(_onSetUserName);
     on<_MessagesUpdatedInternal>((event, emit) {
       emit(MessagesLoaded(event.messages));
     });
+  }
+
+  Future<void> _onSetUserName(
+    SetUserNameEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        emit(ChatError('User not authenticated'));
+        return;
+      }
+
+      await user.updateDisplayName(event.name);
+    } catch (e) {
+      emit(ChatError('Failed to save user name'));
+    }
   }
 
   String _generateChatCode() {
@@ -84,6 +103,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         return;
       }
 
+      final senderName =
+          user.displayName?.isNotEmpty == true ? user.displayName! : 'Guest';
+
       await _firestore
           .collection('chats')
           .doc(event.chatCode)
@@ -91,6 +113,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           .add({
         'text': event.text,
         'senderId': user.uid,
+        'senderName': senderName,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -119,6 +142,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           id: doc.id,
           text: data['text'] ?? '',
           senderId: data['senderId'] ?? '',
+          senderName: data['senderName'] ?? 'Guest',
         );
       }).toList();
 

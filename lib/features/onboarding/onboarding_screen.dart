@@ -1,32 +1,35 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
+import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/gen/assets.gen.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 @RoutePage()
-class OnboardingScreen extends StatefulWidget {
+class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
 
   @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => ChatBloc(),
+      child: OnboardingScreenView(),
+    );
+  }
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  bool isLoading = false;
-  final TextEditingController _nameController = TextEditingController();
+class OnboardingScreenView extends StatefulWidget {
+  const OnboardingScreenView({super.key});
 
-  void _onStart() async {
-    setState(() {
-      isLoading = true;
-    });
-    await Future.delayed(Duration(seconds: 1));
-    if (mounted) {
-      context.router.replace(StartChatRoute());
-    }
-  }
+  @override
+  State<OnboardingScreenView> createState() => _OnboardingScreenViewState();
+}
+
+class _OnboardingScreenViewState extends State<OnboardingScreenView> {
+  final TextEditingController _nameController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -60,14 +63,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               SizedBox(height: 100),
               CustomButton(
                 text: 'Start',
-                onTap: () => _onStart(),
+                onTap: _onStart,
               ),
               SizedBox(height: 100),
-              if (isLoading) CircularProgressIndicator(),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _onStart() {
+    final name = _nameController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot be empty')),
+      );
+      return;
+    }
+
+    context.read<ChatBloc>().add(
+          SetUserNameEvent(name),
+        );
+
+    context.router.replace(const StartChatRoute());
   }
 }
