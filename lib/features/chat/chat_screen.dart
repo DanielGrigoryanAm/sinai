@@ -78,18 +78,21 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                         final message = state.messages[index];
                         final myId = FirebaseAuth.instance.currentUser?.uid;
                         final isMe = message.senderId == myId;
+                        final showName = index == 0 ||
+                            index > 0 &&
+                                state.messages[index - 1].senderId !=
+                                    message.senderId;
 
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Align(
-                            alignment: isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Column(
-                              crossAxisAlignment: isMe
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                              children: [
+                        return Align(
+                          alignment: isMe
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Column(
+                            crossAxisAlignment: isMe
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            children: [
+                              if (showName)
                                 Text(
                                   message.senderName,
                                   style: const TextStyle(
@@ -97,19 +100,38 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: isMe
-                                        ? Colors.blue.shade200
-                                        : Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(12),
+                              const SizedBox(height: 4),
+                              Row(
+                                spacing: 6,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    message.createdAt != null
+                                        ? '${message.createdAt!.hour.toString().padLeft(2, '0')}:${message.createdAt!.minute.toString().padLeft(2, '0')}'
+                                        : '...',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey,
+                                    ),
                                   ),
-                                  child: Text(message.text),
-                                ),
-                              ],
-                            ),
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: isMe
+                                            ? Colors.blue.shade200
+                                            : Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        message.text,
+                                        // softWrap: true,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         );
                       },

@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:sinai/features/chat/models/chat_message.dart';
+import 'package:sinai/features/chat/models/chat_message_model.dart';
 
 part 'chat_event.dart';
 part 'chat_state.dart';
@@ -143,6 +143,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           text: data['text'] ?? '',
           senderId: data['senderId'] ?? '',
           senderName: data['senderName'] ?? 'Guest',
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
         );
       }).toList();
 
