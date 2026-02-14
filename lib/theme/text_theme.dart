@@ -5,12 +5,14 @@ class AppTypography extends ThemeExtension<AppTypography> {
   final TextStyle titleSmall;
   final TextStyle bodyLarge;
   final TextStyle bodySmall;
+  final TextStyle hintText;
 
   const AppTypography({
     required this.titleLarge,
     required this.titleSmall,
     required this.bodyLarge,
     required this.bodySmall,
+    required this.hintText,
   });
 
   factory AppTypography.defaultTypography() {
@@ -35,6 +37,11 @@ class AppTypography extends ThemeExtension<AppTypography> {
         fontWeight: FontWeight.normal,
         color: Color.fromARGB(255, 69, 69, 69),
       ),
+      hintText: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w500,
+        color: Color(0xFFAAAAAA),
+      ),
     );
   }
 
@@ -44,12 +51,14 @@ class AppTypography extends ThemeExtension<AppTypography> {
     TextStyle? titleSmall,
     TextStyle? bodyLarge,
     TextStyle? bodySmall,
+    TextStyle? hintText,
   }) {
     return AppTypography(
       titleLarge: titleLarge ?? this.titleLarge,
       titleSmall: titleSmall ?? this.titleSmall,
       bodyLarge: bodyLarge ?? this.bodyLarge,
       bodySmall: bodySmall ?? this.bodySmall,
+      hintText: hintText ?? this.hintText,
     );
   }
 
@@ -61,6 +70,7 @@ class AppTypography extends ThemeExtension<AppTypography> {
       titleSmall: TextStyle.lerp(titleSmall, other.titleSmall, t)!,
       bodyLarge: TextStyle.lerp(bodyLarge, other.bodyLarge, t)!,
       bodySmall: TextStyle.lerp(bodySmall, other.bodySmall, t)!,
+      hintText: TextStyle.lerp(hintText, other.hintText, t)!,
     );
   }
 }

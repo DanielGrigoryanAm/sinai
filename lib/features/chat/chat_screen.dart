@@ -48,7 +48,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       appBar: CustomAppBar(
         title: widget.chatCode,
       ),
-      backgroundColor: context.colorTheme.backgroundSecondary,
+      backgroundColor: context.colorTheme.backgroundPrimary,
       body: BlocListener<ChatBloc, ChatState>(
         listener: (context, state) {
           if (state is ChatError) {

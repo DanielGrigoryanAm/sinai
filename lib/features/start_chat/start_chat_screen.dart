@@ -29,7 +29,7 @@ class _StartChatScreenState extends State<StartChatScreen> {
         appBar: CustomAppBar(
           title: 'Start Chatting',
         ),
-        backgroundColor: context.colorTheme.backgroundSecondary,
+        backgroundColor: context.colorTheme.backgroundPrimary,
         body: BlocConsumer<ChatBloc, ChatState>(
           listener: (context, state) {
             if (state is ChatError) {

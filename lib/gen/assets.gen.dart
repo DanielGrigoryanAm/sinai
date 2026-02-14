@@ -14,6 +14,10 @@ import 'package:flutter/widgets.dart';
 class $AssetsImagesGen {
   const $AssetsImagesGen();
 
+  /// File path: assets/images/bg-mountain.png
+  AssetGenImage get bgMountain =>
+      const AssetGenImage('assets/images/bg-mountain.png');
+
   /// File path: assets/images/mountain.png
   AssetGenImage get mountain =>
       const AssetGenImage('assets/images/mountain.png');
@@ -23,7 +27,7 @@ class $AssetsImagesGen {
       const AssetGenImage('assets/images/mountain_resized.png');
 
   /// List of all assets
-  List<AssetGenImage> get values => [mountain, mountainResized];
+  List<AssetGenImage> get values => [bgMountain, mountain, mountainResized];
 }
 
 class Assets {
