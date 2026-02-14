@@ -62,7 +62,7 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
               hintText: 'Enter your name',
             ),
             SizedBox(height: 20),
-            CustomButton(
+            CustomButton.primary(
               text: 'Start',
               onTap: _onStart,
             ),
@@ -87,6 +87,6 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
           SetUserNameEvent(name),
         );
 
-    context.router.replace(const StartChatRoute());
+    context.router.push(const StartChatRoute());
   }
 }

@@ -159,7 +159,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    CustomButton(
+                    CustomButton.primary(
                       text: 'Send',
                       onTap: () {
                         final text = chatController.text.trim();
