@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
 import 'package:sinai/common/custom_text_field.dart';
+import 'package:sinai/common/gyro_horizontal_background.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/gen/assets.gen.dart';
 import 'package:sinai/router/app_router.dart';
@@ -42,41 +43,39 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
   Widget build(BuildContext context) {
     final name = _nameController.text.trim();
 
-    return Scaffold(
-      appBar: CustomAppBar(
-        title: 'Wellcome to Sinai',
-      ),
-      backgroundColor: context.colorTheme.backgroundPrimary,
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 30),
-        child: Column(
-          children: [
-            SizedBox(height: 20),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: 'Wellcome to Sinai',
+        ),
+        backgroundColor: context.colorTheme.backgroundPrimary,
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Column(
+            children: [
+              SizedBox(height: 20),
+              Expanded(
+                child: GyroHorizontalBackground(
                   borderRadius: BorderRadius.circular(16),
-                  image: DecorationImage(
-                    image: Assets.images.bgMountain.provider(),
-                    fit: BoxFit.cover,
-                  ),
+                  imageProvider: Assets.images.bgMountain.provider(),
+                  imageAspectRatio: 1536 / 819,
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            CustomTextField(
-              controller: _nameController,
-              hintText: 'Enter your name',
-              onChanged: (_) => setState(() {}),
-            ),
-            SizedBox(height: 20),
-            CustomButton.primary(
-              text: 'Start',
-              onTap: name.isNotEmpty ? () => _onStart(name) : null,
-            ),
-            SizedBox(height: 60),
-          ],
+              SizedBox(height: 20),
+              CustomTextField(
+                controller: _nameController,
+                hintText: 'Enter your name',
+                onChanged: (_) => setState(() {}),
+              ),
+              SizedBox(height: 20),
+              CustomButton.primary(
+                text: 'Start',
+                onTap: name.isNotEmpty ? () => _onStart(name) : null,
+              ),
+              SizedBox(height: 60),
+            ],
+          ),
         ),
       ),
     );
