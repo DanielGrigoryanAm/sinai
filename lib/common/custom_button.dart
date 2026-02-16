@@ -8,8 +8,8 @@ class CustomButton extends StatelessWidget {
   const CustomButton._({
     super.key,
     required this.text,
-    required this.onTap,
     required _CustomButtonType type,
+    this.onTap,
     this.isLoading = false,
     this.leadingIcon,
     this.trailingIcon,
@@ -18,7 +18,7 @@ class CustomButton extends StatelessWidget {
   factory CustomButton.primary({
     Key? key,
     required String text,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     bool isLoading = false,
     IconData? leadingIcon,
     IconData? trailingIcon,
@@ -37,7 +37,7 @@ class CustomButton extends StatelessWidget {
   factory CustomButton.outline({
     Key? key,
     required String text,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     bool isLoading = false,
     IconData? leadingIcon,
     IconData? trailingIcon,
@@ -54,7 +54,7 @@ class CustomButton extends StatelessWidget {
   }
 
   final String text;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool isLoading;
   final IconData? leadingIcon;
   final IconData? trailingIcon;
@@ -74,7 +74,8 @@ class CustomButton extends StatelessWidget {
       child: Container(
         height: 65,
         decoration: BoxDecoration(
-          color: backgroundColor,
+          color:
+              onTap != null ? backgroundColor : backgroundColor.withAlpha(120),
           borderRadius: BorderRadius.circular(16),
           border: isPrimary
               ? null

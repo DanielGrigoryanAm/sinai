@@ -33,22 +33,30 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
   final TextEditingController _nameController = TextEditingController();
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final name = _nameController.text.trim();
+
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Wellcome to Sinai',
       ),
       backgroundColor: context.colorTheme.backgroundPrimary,
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 30),
         child: Column(
           children: [
-            Spacer(),
+            SizedBox(height: 20),
             Expanded(
               child: Container(
-                width: 280,
+                width: double.infinity,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(50),
+                  borderRadius: BorderRadius.circular(16),
                   image: DecorationImage(
                     image: Assets.images.bgMountain.provider(),
                     fit: BoxFit.cover,
@@ -56,15 +64,16 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
                 ),
               ),
             ),
-            Spacer(),
+            SizedBox(height: 20),
             CustomTextField(
               controller: _nameController,
               hintText: 'Enter your name',
+              onChanged: (_) => setState(() {}),
             ),
             SizedBox(height: 20),
             CustomButton.primary(
               text: 'Start',
-              onTap: _onStart,
+              onTap: name.isNotEmpty ? () => _onStart(name) : null,
             ),
             SizedBox(height: 60),
           ],
@@ -73,16 +82,7 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
     );
   }
 
-  void _onStart() {
-    final name = _nameController.text.trim();
-
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name cannot be empty')),
-      );
-      return;
-    }
-
+  void _onStart(String name) {
     context.read<ChatBloc>().add(
           SetUserNameEvent(name),
         );

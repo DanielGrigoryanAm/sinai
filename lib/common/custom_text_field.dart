@@ -6,15 +6,18 @@ class CustomTextField extends StatelessWidget {
   const CustomTextField({
     super.key,
     this.hintText,
+    this.onChanged,
     required this.controller,
   });
 
   final TextEditingController controller;
   final String? hintText;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
+      onChanged: (value) => onChanged?.call(value),
       controller: controller,
       decoration: InputDecoration(
         filled: true,
