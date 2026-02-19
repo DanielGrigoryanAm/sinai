@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/chat_screen.dart';
+import 'package:sinai/features/chats/chats_screen.dart';
 import 'package:sinai/features/onboarding/onboarding_screen.dart';
 import 'package:sinai/features/profile/profile_screen.dart';
 import 'package:sinai/features/start_chat/start_chat_screen.dart';
@@ -16,10 +17,16 @@ class AppRouter extends RootStackRouter {
           initial: true,
         ),
         AutoRoute(
+          page: ChatsRoute.page,
+        ),
+        AutoRoute(
           page: StartChatRoute.page,
         ),
         AutoRoute(
           page: ChatRoute.page,
+        ),
+        AutoRoute(
+          page: ProfileRoute.page,
         ),
       ];
 }

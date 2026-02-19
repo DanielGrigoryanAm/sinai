@@ -55,6 +55,22 @@ class ChatRouteArgs {
 }
 
 /// generated route for
+/// [ChatsScreen]
+class ChatsRoute extends PageRouteInfo<void> {
+  const ChatsRoute({List<PageRouteInfo>? children})
+      : super(ChatsRoute.name, initialChildren: children);
+
+  static const String name = 'ChatsRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const ChatsScreen();
+    },
+  );
+}
+
+/// generated route for
 /// [OnboardingScreen]
 class OnboardingRoute extends PageRouteInfo<void> {
   const OnboardingRoute({List<PageRouteInfo>? children})

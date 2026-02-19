@@ -19,6 +19,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<SendMessageEvent>(_onSendMessage);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
     on<SetUserNameEvent>(_onSetUserName);
+    on<GetChatsEvent>(_onGetChats);
+    on<DeleteChatEvent>(_onDeleteChat);
     on<_MessagesUpdatedInternal>((event, emit) {
       emit(MessagesLoaded(event.messages));
     });
@@ -55,10 +57,19 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     emit(ChatLoading());
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        emit(ChatError('User not authenticated'));
+        return;
+      }
+
       final chatCode = _generateChatCode();
 
       await _firestore.collection('chats').doc(chatCode).set({
         'code': chatCode,
+        'ownerId': user.uid,
+        'participantIds': [user.uid],
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -75,6 +86,13 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     emit(ChatLoading());
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        emit(ChatError('User not authenticated'));
+        return;
+      }
+
       final code = event.code.toUpperCase();
       final doc = await _firestore.collection('chats').doc(code).get();
 
@@ -83,9 +101,106 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         return;
       }
 
+      await _firestore.collection('chats').doc(code).update({
+        'participantIds': FieldValue.arrayUnion([user.uid]),
+      });
+
       emit(ChatJoined(code));
     } catch (e) {
-      emit(ChatError('Failed to join chat'));
+      emit(ChatError(e.toString()));
+    }
+  }
+
+  Future<void> _onGetChats(
+    GetChatsEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    emit(ChatLoading());
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        emit(ChatError('User not authenticated'));
+        return;
+      }
+
+      final snapshot = await _firestore
+          .collection('chats')
+          .where('participantIds', arrayContains: user.uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final chatCodes = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return (data['code'] as String?) ?? doc.id;
+      }).toList();
+
+      emit(ChatsLoaded(chatCodes));
+    } catch (e) {
+      emit(ChatError(e.toString()));
+    }
+  }
+
+  Future<void> _onDeleteChat(
+    DeleteChatEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    emit(ChatLoading());
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        emit(ChatError('User not authenticated'));
+        return;
+      }
+
+      final code = event.code.toUpperCase();
+      final chatRef = _firestore.collection('chats').doc(code);
+      final chatDoc = await chatRef.get();
+
+      if (!chatDoc.exists) {
+        emit(ChatError('Chat not found'));
+        return;
+      }
+
+      final data = chatDoc.data() ?? <String, dynamic>{};
+      final participants =
+          (data['participantIds'] as List<dynamic>? ?? const []).cast<String>();
+
+      if (!participants.contains(user.uid)) {
+        emit(ChatError('No permission to delete this chat'));
+        return;
+      }
+
+      final ownerId = data['ownerId'] as String?;
+
+      if (ownerId == user.uid) {
+        final messagesRef =
+            _firestore.collection('chats').doc(code).collection('messages');
+
+        while (true) {
+          final batchSnapshot = await messagesRef.limit(200).get();
+          if (batchSnapshot.docs.isEmpty) break;
+
+          final batch = _firestore.batch();
+          for (final doc in batchSnapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
+
+        await chatRef.delete();
+      } else {
+        await chatRef.update({
+          'participantIds': FieldValue.arrayRemove([user.uid]),
+        });
+      }
+
+      emit(ChatDeleted(code));
+    } catch (e) {
+      emit(ChatError(e.toString()));
     }
   }
 
@@ -117,7 +232,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      emit(ChatError('Failed to send message'));
+      emit(ChatError(e.toString()));
     }
   }
 

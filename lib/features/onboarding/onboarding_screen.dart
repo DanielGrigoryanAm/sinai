@@ -90,6 +90,6 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
           SetUserNameEvent(name),
         );
 
-    context.router.push(const StartChatRoute());
+    context.router.replaceAll([const ChatsRoute()]);
   }
 }

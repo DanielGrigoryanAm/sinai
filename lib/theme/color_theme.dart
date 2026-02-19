@@ -24,7 +24,7 @@ class ColorTheme {
 const lightColorTheme = ColorTheme(
   primary: Color(0xFF000000),
   secondary: Color(0xFFE1B866),
-  backgroundPrimary: Color(0xFFFBF7EF),
+  backgroundPrimary: Color(0xFFFDF7E9),
   backgroundSecondary: Color(0xFFFFFFFF),
   textPrimary: Colors.black,
   textSecondary: Color(0xFF8A8A8A),

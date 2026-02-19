@@ -6,11 +6,13 @@ import 'package:sinai/theme/color_theme.dart';
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showBackButton;
   final String? title;
+  final VoidCallback? onBackPressed;
 
   const CustomAppBar({
     super.key,
     this.showBackButton = false,
     this.title,
+    this.onBackPressed,
   });
 
   @override
@@ -20,7 +22,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       leading: showBackButton
           ? IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.router.pop(),
+              onPressed: onBackPressed ?? () => context.router.pop(),
             )
           : null,
       title: title != null

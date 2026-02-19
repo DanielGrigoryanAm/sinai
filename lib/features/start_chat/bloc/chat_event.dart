@@ -51,6 +51,19 @@ class SetUserNameEvent extends ChatEvent {
   List<Object> get props => [name];
 }
 
+class GetChatsEvent extends ChatEvent {
+  const GetChatsEvent();
+}
+
+class DeleteChatEvent extends ChatEvent {
+  final String code;
+
+  const DeleteChatEvent(this.code);
+
+  @override
+  List<Object> get props => [code];
+}
+
 /// internal event
 class _MessagesUpdatedInternal extends ChatEvent {
   final List<ChatMessage> messages;

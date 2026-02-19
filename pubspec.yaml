@@ -19,6 +19,7 @@ dependencies:
   flutter_bloc: ^9.1.0
   equatable: ^2.0.7
   sensors_plus: ^6.1.1
+  flutter_slidable: ^4.0.1
 
 
 dev_dependencies:

@@ -46,3 +46,21 @@ class MessagesLoaded extends ChatState {
   @override
   List<Object> get props => [messages];
 }
+
+class ChatsLoaded extends ChatState {
+  final List<String> chatCodes;
+
+  const ChatsLoaded(this.chatCodes);
+
+  @override
+  List<Object> get props => [chatCodes];
+}
+
+class ChatDeleted extends ChatState {
+  final String code;
+
+  const ChatDeleted(this.code);
+
+  @override
+  List<Object> get props => [code];
+}
