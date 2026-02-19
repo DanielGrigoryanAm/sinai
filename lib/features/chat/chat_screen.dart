@@ -42,9 +42,34 @@ class ChatScreenView extends StatefulWidget {
 
 class _ChatScreenViewState extends State<ChatScreenView> {
   final TextEditingController chatController = TextEditingController();
+  final ScrollController _messagesScrollController = ScrollController();
+  int _lastMessagesCount = 0;
 
   void _handleExitToChats() {
     context.router.replaceAll([const ChatsRoute()]);
+  }
+
+  void _scrollToBottom({bool animated = true}) {
+    if (!_messagesScrollController.hasClients) return;
+
+    final targetOffset = _messagesScrollController.position.maxScrollExtent;
+    if (animated) {
+      _messagesScrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+      return;
+    }
+
+    _messagesScrollController.jumpTo(targetOffset);
+  }
+
+  @override
+  void dispose() {
+    chatController.dispose();
+    _messagesScrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -70,6 +95,13 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                 SnackBar(content: Text(state.message)),
               );
             }
+            if (state is MessagesLoaded && state.messages.isNotEmpty) {
+              final hasNewMessages = state.messages.length != _lastMessagesCount;
+              _lastMessagesCount = state.messages.length;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _scrollToBottom(animated: hasNewMessages);
+              });
+            }
           },
           child: Column(
             children: [
@@ -86,6 +118,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                       }
 
                       return ListView.builder(
+                        controller: _messagesScrollController,
                         padding: const EdgeInsets.all(12),
                         itemCount: state.messages.length,
                         itemBuilder: (context, index) {
@@ -163,6 +196,11 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                   child: MessageField(
                     chatController: chatController,
                     chatCode: widget.chatCode,
+                    onMessageSent: () {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        _scrollToBottom();
+                      });
+                    },
                   ),
                 ),
               ),

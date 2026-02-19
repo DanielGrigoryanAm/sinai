@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/gen/assets.gen.dart';
+import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 class MessageField extends StatelessWidget {
@@ -9,10 +10,12 @@ class MessageField extends StatelessWidget {
     super.key,
     required this.chatController,
     required this.chatCode,
+    this.onMessageSent,
   });
 
   final TextEditingController chatController;
   final String chatCode;
+  final VoidCallback? onMessageSent;
 
   @override
   Widget build(BuildContext context) {
@@ -39,23 +42,30 @@ class MessageField extends StatelessWidget {
               borderSide: BorderSide.none,
             ),
             hintText: 'Message...',
-            suffixIcon: IconButton(
-              icon: Assets.icons.send.image(
-                height: 42,
-                width: 42,
-              ),
-              onPressed: () {
-                final text = chatController.text.trim();
-                if (text.isEmpty) return;
-                context.read<ChatBloc>().add(
-                      SendMessageEvent(
-                        chatCode: chatCode,
-                        text: text,
-                      ),
-                    );
+            hintStyle: context.textTheme.hintText.copyWith(
+              fontSize: 16,
+            ),
+            suffixIcon: Padding(
+              padding: const EdgeInsets.only(right: 5),
+              child: IconButton(
+                icon: Assets.icons.send.image(
+                  height: 35,
+                  width: 35,
+                ),
+                onPressed: () {
+                  final text = chatController.text.trim();
+                  if (text.isEmpty) return;
+                  context.read<ChatBloc>().add(
+                        SendMessageEvent(
+                          chatCode: chatCode,
+                          text: text,
+                        ),
+                      );
 
-                chatController.clear();
-              },
+                  chatController.clear();
+                  onMessageSent?.call();
+                },
+              ),
             )),
       ),
     );
