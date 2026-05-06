@@ -1,0 +1,2 @@
+/Users/daniel/Documents/sinay/android/app/.cxx/Debug/6d2u6x1t/x86/CMakeFiles/edit_cache.dir
+/Users/daniel/Documents/sinay/android/app/.cxx/Debug/6d2u6x1t/x86/CMakeFiles/rebuild_cache.dir
