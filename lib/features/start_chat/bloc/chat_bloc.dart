@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chats/models/chat_summary.dart';
 
 part 'chat_event.dart';
 part 'chat_state.dart';
@@ -136,20 +137,51 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           .orderBy('createdAt', descending: true)
           .get();
 
-      final chatCodes = <String>[];
-      final chatNames = <String, String>{};
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final code = (data['code'] as String?) ?? doc.id;
-        final name = (data['name'] as String?)?.trim() ?? '';
-        chatCodes.add(code);
-        if (name.isNotEmpty) chatNames[code] = name;
-      }
+      final chats = await Future.wait(snapshot.docs.map(_loadChatSummary));
 
-      emit(ChatsLoaded(chatCodes, chatNames: chatNames));
+      // Most recently active chats first.
+      chats.sort((a, b) {
+        final aTime = a.lastActivityAt;
+        final bTime = b.lastActivityAt;
+        if (aTime == null || bTime == null) {
+          return aTime == bTime ? 0 : (aTime == null ? 1 : -1);
+        }
+        return bTime.compareTo(aTime);
+      });
+
+      emit(ChatsLoaded(chats));
     } catch (e) {
       emit(ChatError(e.toString()));
     }
+  }
+
+  Future<ChatSummary> _loadChatSummary(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) async {
+    final data = doc.data();
+    final name = (data['name'] as String?)?.trim() ?? '';
+    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+
+    Map<String, dynamic>? last;
+    try {
+      final messages = await doc.reference
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+      if (messages.docs.isNotEmpty) last = messages.docs.first.data();
+    } catch (_) {
+      // The list is still useful without the message preview.
+    }
+
+    return ChatSummary(
+      code: (data['code'] as String?) ?? doc.id,
+      name: name.isEmpty ? null : name,
+      lastMessage: last?['text'] as String?,
+      lastSenderId: last?['senderId'] as String?,
+      lastSenderName: last?['senderName'] as String?,
+      lastActivityAt: (last?['createdAt'] as Timestamp?)?.toDate() ?? createdAt,
+    );
   }
 
   Future<void> _onDeleteChat(

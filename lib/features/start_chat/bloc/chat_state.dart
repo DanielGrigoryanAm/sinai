@@ -49,15 +49,12 @@ class MessagesLoaded extends ChatState {
 }
 
 class ChatsLoaded extends ChatState {
-  final List<String> chatCodes;
+  final List<ChatSummary> chats;
 
-  /// Chat names by chat code. Chats created before names existed are absent.
-  final Map<String, String> chatNames;
-
-  const ChatsLoaded(this.chatCodes, {this.chatNames = const {}});
+  const ChatsLoaded(this.chats);
 
   @override
-  List<Object> get props => [chatCodes, chatNames];
+  List<Object> get props => [chats];
 }
 
 class ChatDeleted extends ChatState {
