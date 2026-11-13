@@ -297,47 +297,95 @@ class _ChatRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Row(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Expanded(
-                    child: Text(
-                      chat.title,
+              _ChatAvatar(title: chat.title),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            chat.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.titleSmall.copyWith(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _time(context),
+                          style: text.bodySmall.copyWith(
+                            fontSize: 13,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _preview(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: text.titleSmall.copyWith(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
+                      style: text.bodyLarge.copyWith(
+                        fontSize: 15,
+                        color: colors.textSecondary,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _time(context),
-                    style: text.bodySmall.copyWith(
-                      fontSize: 13,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _preview(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: text.bodyLarge.copyWith(
-                  fontSize: 15,
-                  color: colors.textSecondary,
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Circle with the first letter of the chat name.
+class _ChatAvatar extends StatelessWidget {
+  const _ChatAvatar({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = title.trim();
+    final initial =
+        trimmed.isEmpty ? '#' : trimmed.characters.first.toUpperCase();
+
+    return Container(
+      width: 56,
+      height: 56,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFFECEDF2),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        initial,
+        style: context.textTheme.titleSmall.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: const Color(0xFF6B7080),
         ),
       ),
     );
