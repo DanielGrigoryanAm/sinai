@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
+import 'package:sinai/features/chat/widgets/message_bubble.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
@@ -141,68 +142,32 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
                       return ListView.builder(
                         controller: _messagesScrollController,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                         itemCount: state.messages.length,
                         itemBuilder: (context, index) {
                           final message = state.messages[index];
                           final myId = FirebaseAuth.instance.currentUser?.uid;
                           final isMe = message.senderId == myId;
-                          final showName = index == 0 ||
-                              index > 0 &&
-                                  state.messages[index - 1].senderId !=
-                                      message.senderId;
+                          final previous =
+                              index > 0 ? state.messages[index - 1] : null;
+                          final date = message.createdAt ?? DateTime.now();
+                          final previousDate = previous == null
+                              ? null
+                              : previous.createdAt ?? DateTime.now();
+                          final isNewDay = previousDate == null ||
+                              !DateUtils.isSameDay(previousDate, date);
 
-                          return Align(
-                            alignment: isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Column(
-                              crossAxisAlignment: isMe
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                              children: [
-                                if (showName)
-                                  Text(
-                                    message.senderName,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  spacing: 6,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      message.createdAt != null
-                                          ? '${message.createdAt!.hour.toString().padLeft(2, '0')}:${message.createdAt!.minute.toString().padLeft(2, '0')}'
-                                          : '...',
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    Flexible(
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: isMe
-                                              ? Colors.blue.shade200
-                                              : Colors.grey.shade200,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          message.text,
-                                          // softWrap: true,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (isNewDay) MessageDatePill(date: date),
+                              MessageBubble(
+                                message: message,
+                                isMe: isMe,
+                                showName: isNewDay ||
+                                    previous?.senderId != message.senderId,
+                              ),
+                            ],
                           );
                         },
                       );
