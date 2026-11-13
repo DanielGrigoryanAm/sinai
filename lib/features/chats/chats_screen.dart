@@ -108,6 +108,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         separatorBuilder: (_, __) => SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final code = state.chatCodes[index];
+                          final name = state.chatNames[code];
                           const itemRadius =
                               BorderRadius.all(Radius.circular(14));
                           return Container(
@@ -137,13 +138,23 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                     ),
                                   ],
                                 ),
-                                child: ListTile(
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: itemRadius,
-                                  ),
-                                  title: Text(code),
-                                  onTap: () => context.router.push(
-                                    ChatRoute(chatCode: code),
+                                // ListTile paints its ink on the nearest
+                                // Material, so it needs one of its own above
+                                // the decorated container.
+                                child: Material(
+                                  color: context.colorTheme.backgroundSecondary,
+                                  child: ListTile(
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: itemRadius,
+                                    ),
+                                    title: Text(name ?? code),
+                                    subtitle: name != null ? Text(code) : null,
+                                    onTap: () => context.router.push(
+                                      ChatRoute(
+                                        chatCode: code,
+                                        chatName: name,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),

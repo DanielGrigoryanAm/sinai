@@ -11,12 +11,80 @@
 part of 'app_router.dart';
 
 /// generated route for
+/// [ChatReadyScreen]
+class ChatReadyRoute extends PageRouteInfo<ChatReadyRouteArgs> {
+  ChatReadyRoute({
+    Key? key,
+    required String chatCode,
+    required String chatName,
+    List<PageRouteInfo>? children,
+  }) : super(
+          ChatReadyRoute.name,
+          args: ChatReadyRouteArgs(
+            key: key,
+            chatCode: chatCode,
+            chatName: chatName,
+          ),
+          initialChildren: children,
+        );
+
+  static const String name = 'ChatReadyRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<ChatReadyRouteArgs>();
+      return ChatReadyScreen(
+        key: args.key,
+        chatCode: args.chatCode,
+        chatName: args.chatName,
+      );
+    },
+  );
+}
+
+class ChatReadyRouteArgs {
+  const ChatReadyRouteArgs({
+    this.key,
+    required this.chatCode,
+    required this.chatName,
+  });
+
+  final Key? key;
+
+  final String chatCode;
+
+  final String chatName;
+
+  @override
+  String toString() {
+    return 'ChatReadyRouteArgs{key: $key, chatCode: $chatCode, chatName: $chatName}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! ChatReadyRouteArgs) return false;
+    return key == other.key &&
+        chatCode == other.chatCode &&
+        chatName == other.chatName;
+  }
+
+  @override
+  int get hashCode => key.hashCode ^ chatCode.hashCode ^ chatName.hashCode;
+}
+
+/// generated route for
 /// [ChatScreen]
 class ChatRoute extends PageRouteInfo<ChatRouteArgs> {
-  ChatRoute({Key? key, required String chatCode, List<PageRouteInfo>? children})
-      : super(
+  ChatRoute({
+    Key? key,
+    required String chatCode,
+    String? chatName,
+    List<PageRouteInfo>? children,
+  }) : super(
           ChatRoute.name,
-          args: ChatRouteArgs(key: key, chatCode: chatCode),
+          args: ChatRouteArgs(key: key, chatCode: chatCode, chatName: chatName),
           initialChildren: children,
         );
 
@@ -26,32 +94,40 @@ class ChatRoute extends PageRouteInfo<ChatRouteArgs> {
     name,
     builder: (data) {
       final args = data.argsAs<ChatRouteArgs>();
-      return ChatScreen(key: args.key, chatCode: args.chatCode);
+      return ChatScreen(
+        key: args.key,
+        chatCode: args.chatCode,
+        chatName: args.chatName,
+      );
     },
   );
 }
 
 class ChatRouteArgs {
-  const ChatRouteArgs({this.key, required this.chatCode});
+  const ChatRouteArgs({this.key, required this.chatCode, this.chatName});
 
   final Key? key;
 
   final String chatCode;
 
+  final String? chatName;
+
   @override
   String toString() {
-    return 'ChatRouteArgs{key: $key, chatCode: $chatCode}';
+    return 'ChatRouteArgs{key: $key, chatCode: $chatCode, chatName: $chatName}';
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other is! ChatRouteArgs) return false;
-    return key == other.key && chatCode == other.chatCode;
+    return key == other.key &&
+        chatCode == other.chatCode &&
+        chatName == other.chatName;
   }
 
   @override
-  int get hashCode => key.hashCode ^ chatCode.hashCode;
+  int get hashCode => key.hashCode ^ chatCode.hashCode ^ chatName.hashCode;
 }
 
 /// generated route for
@@ -66,6 +142,22 @@ class ChatsRoute extends PageRouteInfo<void> {
     name,
     builder: (data) {
       return const ChatsScreen();
+    },
+  );
+}
+
+/// generated route for
+/// [CreateChatScreen]
+class CreateChatRoute extends PageRouteInfo<void> {
+  const CreateChatRoute({List<PageRouteInfo>? children})
+      : super(CreateChatRoute.name, initialChildren: children);
+
+  static const String name = 'CreateChatRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const CreateChatScreen();
     },
   );
 }

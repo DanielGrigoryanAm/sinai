@@ -68,14 +68,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       final chatCode = _generateChatCode();
 
+      final name = event.name.trim();
+
       await _firestore.collection('chats').doc(chatCode).set({
         'code': chatCode,
+        'name': name,
         'ownerId': user.uid,
         'participantIds': [user.uid],
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      emit(ChatCreated(chatCode));
+      emit(ChatCreated(chatCode, name));
     } catch (e) {
       emit(ChatError('Failed to create chat'));
     }
@@ -133,12 +136,17 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           .orderBy('createdAt', descending: true)
           .get();
 
-      final chatCodes = snapshot.docs.map((doc) {
+      final chatCodes = <String>[];
+      final chatNames = <String, String>{};
+      for (final doc in snapshot.docs) {
         final data = doc.data();
-        return (data['code'] as String?) ?? doc.id;
-      }).toList();
+        final code = (data['code'] as String?) ?? doc.id;
+        final name = (data['name'] as String?)?.trim() ?? '';
+        chatCodes.add(code);
+        if (name.isNotEmpty) chatNames[code] = name;
+      }
 
-      emit(ChatsLoaded(chatCodes));
+      emit(ChatsLoaded(chatCodes, chatNames: chatNames));
     } catch (e) {
       emit(ChatError(e.toString()));
     }

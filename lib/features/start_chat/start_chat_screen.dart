@@ -41,9 +41,6 @@ class _StartChatScreenState extends State<StartChatScreen> {
                   SnackBar(content: Text(state.message)),
                 );
               }
-              if (state is ChatCreated) {
-                context.router.push(ChatRoute(chatCode: state.code));
-              }
               if (state is ChatJoined) {
                 context.router.push(ChatRoute(chatCode: state.code));
               }
@@ -89,10 +86,8 @@ class _StartChatScreenState extends State<StartChatScreen> {
                   CustomButton.outline(
                     text: 'Create chat',
                     leadingIcon: Icons.add,
-                    isLoading: state is ChatLoading,
-                    onTap: () {
-                      context.read<ChatBloc>().add(const CreateChatEvent());
-                    },
+                    onTap: () =>
+                        context.router.push(const CreateChatRoute()),
                   ),
                 ],
               ),

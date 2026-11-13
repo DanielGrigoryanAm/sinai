@@ -7,12 +7,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool showBackButton;
   final String? title;
   final VoidCallback? onBackPressed;
+  final List<Widget>? actions;
 
   const CustomAppBar({
     super.key,
     this.showBackButton = false,
     this.title,
     this.onBackPressed,
+    this.actions,
   });
 
   @override
@@ -32,6 +34,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             )
           : null,
       centerTitle: true,
+      actions: actions,
     );
   }
 

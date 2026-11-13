@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
+import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
@@ -13,9 +14,11 @@ class ChatScreen extends StatelessWidget {
   const ChatScreen({
     super.key,
     required this.chatCode,
+    this.chatName,
   });
 
   final String chatCode;
+  final String? chatName;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +26,7 @@ class ChatScreen extends StatelessWidget {
       create: (context) => ChatBloc()..add(MessagesSubscribeEvent(chatCode)),
       child: ChatScreenView(
         chatCode: chatCode,
+        chatName: chatName,
       ),
     );
   }
@@ -32,9 +36,11 @@ class ChatScreenView extends StatefulWidget {
   const ChatScreenView({
     super.key,
     required this.chatCode,
+    this.chatName,
   });
 
   final String chatCode;
+  final String? chatName;
 
   @override
   State<ChatScreenView> createState() => _ChatScreenViewState();
@@ -47,6 +53,12 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
   void _handleExitToChats() {
     context.router.replaceAll([const ChatsRoute()]);
+  }
+
+  Future<void> _openChatInfo() async {
+    final leave = await showChatInfoSheet(context, widget.chatCode);
+    if (!leave || !mounted) return;
+    context.read<ChatBloc>().add(DeleteChatEvent(widget.chatCode));
   }
 
   void _scrollToBottom({bool animated = true}) {
@@ -83,9 +95,16 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       },
       child: Scaffold(
         appBar: CustomAppBar(
-          title: widget.chatCode,
+          title: widget.chatName ?? 'Chat',
           showBackButton: true,
           onBackPressed: _handleExitToChats,
+          actions: [
+            IconButton(
+              tooltip: 'Chat info',
+              icon: const Icon(Icons.more_vert),
+              onPressed: _openChatInfo,
+            ),
+          ],
         ),
         backgroundColor: context.colorTheme.backgroundPrimary,
         body: BlocListener<ChatBloc, ChatState>(
@@ -94,6 +113,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text(state.message)),
               );
+            }
+            if (state is ChatDeleted) {
+              _handleExitToChats();
             }
             if (state is MessagesLoaded && state.messages.isNotEmpty) {
               final hasNewMessages = state.messages.length != _lastMessagesCount;

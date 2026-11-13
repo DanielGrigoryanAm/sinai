@@ -8,7 +8,12 @@ sealed class ChatEvent extends Equatable {
 }
 
 class CreateChatEvent extends ChatEvent {
-  const CreateChatEvent();
+  final String name;
+
+  const CreateChatEvent(this.name);
+
+  @override
+  List<Object> get props => [name];
 }
 
 class JoinChatEvent extends ChatEvent {
