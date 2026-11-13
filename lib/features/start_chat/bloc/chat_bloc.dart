@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 
 part 'chat_event.dart';
@@ -39,6 +40,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       }
 
       await user.updateDisplayName(event.name);
+      await OnboardingPrefs.setNameConfirmed();
     } catch (e) {
       emit(ChatError('Failed to save user name'));
     }

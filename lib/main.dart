@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/auth/bloc/auth_bloc.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
+import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/text_theme.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
-final appRouter = AppRouter();
+late final AppRouter appRouter;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +20,10 @@ void main() async {
   if (FirebaseAuth.instance.currentUser == null) {
     await FirebaseAuth.instance.signInAnonymously();
   }
+
+  final nameConfirmed = await OnboardingPrefs.isNameConfirmed();
+  appRouter = AppRouter(showOnboarding: !nameConfirmed);
+
   runApp(const MyApp());
 }
 

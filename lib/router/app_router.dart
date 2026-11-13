@@ -10,14 +10,20 @@ part 'app_router.gr.dart';
 
 @AutoRouterConfig(replaceInRouteName: 'Screen,Route')
 class AppRouter extends RootStackRouter {
+  AppRouter({required this.showOnboarding});
+
+  /// Onboarding is shown only until the user confirms their name.
+  final bool showOnboarding;
+
   @override
   List<AutoRoute> get routes => [
         AutoRoute(
           page: OnboardingRoute.page,
-          initial: true,
+          initial: showOnboarding,
         ),
         AutoRoute(
           page: ChatsRoute.page,
+          initial: !showOnboarding,
         ),
         AutoRoute(
           page: StartChatRoute.page,
