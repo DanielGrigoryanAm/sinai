@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -156,7 +157,17 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
-                      onTap: () => Navigator.of(context).pop(true),
+                      onTap: () async {
+                        final confirmed = await confirmRemoveChat(
+                          context,
+                          chatTitle:
+                              chatName.isNotEmpty ? chatName : widget.chatCode,
+                          isOwner: isOwner,
+                        );
+                        if (confirmed && context.mounted) {
+                          Navigator.of(context).pop(true);
+                        }
+                      },
                       child: SizedBox(
                         height: 56,
                         child: Row(

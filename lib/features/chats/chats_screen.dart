@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
@@ -97,13 +98,32 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                      child: Text(
-                        'Messages',
-                        style: context.textTheme.titleLarge.copyWith(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Messages',
+                              style: context.textTheme.titleLarge.copyWith(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ),
+                          Material(
+                            color: colors.backgroundSecondary,
+                            shape: const CircleBorder(),
+                            elevation: 2,
+                            shadowColor: const Color(0x33000000),
+                            clipBehavior: Clip.antiAlias,
+                            child: IconButton(
+                              tooltip: 'Profile',
+                              icon: const Icon(Icons.person_outline),
+                              onPressed: () =>
+                                  context.router.push(const ProfileRoute()),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     Padding(
@@ -186,11 +206,18 @@ class _ChatsScreenState extends State<ChatsScreen> {
               extentRatio: 0.2,
               children: [
                 SlidableAction(
-                  onPressed: (_) =>
-                      context.read<ChatBloc>().add(DeleteChatEvent(chat.code)),
+                  onPressed: (_) async {
+                    final bloc = context.read<ChatBloc>();
+                    final confirmed = await confirmRemoveChat(
+                      context,
+                      chatTitle: chat.title,
+                      isOwner: chat.isOwner,
+                    );
+                    if (confirmed) bloc.add(DeleteChatEvent(chat.code));
+                  },
                   backgroundColor: const Color(0xFFDC2626),
                   foregroundColor: Colors.white,
-                  icon: Icons.delete_outline,
+                  icon: chat.isOwner ? Icons.delete_outline : Icons.logout,
                 ),
               ],
             ),

@@ -26,15 +26,19 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<_ChatsSnapshotInternal>(_onChatsSnapshot);
     on<_ChatsChangedInternal>((event, emit) => _emitChats(emit));
     on<_ChatsFailedInternal>((event, emit) => emit(ChatError(event.message)));
+    on<LoadMoreMessagesEvent>(_onLoadMoreMessages);
     on<_MessagesUpdatedInternal>((event, emit) {
       _messages = event.messages;
+      // A full window means there may be older messages beyond it.
+      _hasMoreMessages = _messages.length >= _messagesLimit;
+      _loadingMoreMessages = false;
       _markChatRead();
-      emit(MessagesLoaded(_messages, seenAt: _othersReadAt));
+      _emitMessages(emit);
     });
     on<_ReadMarksUpdatedInternal>((event, emit) {
       // Messages not loaded yet; the mark is emitted together with them.
       if (state is! MessagesLoaded) return;
-      emit(MessagesLoaded(_messages, seenAt: _othersReadAt));
+      _emitMessages(emit);
     });
   }
 
@@ -52,6 +56,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       await user.updateDisplayName(event.name);
       await OnboardingPrefs.setNameConfirmed();
+      emit(UserNameSaved(event.name));
     } catch (e) {
       emit(ChatError('Failed to save user name'));
     }
@@ -77,17 +82,36 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         return;
       }
 
-      final chatCode = _generateChatCode();
-
       final name = event.name.trim();
 
-      await _firestore.collection('chats').doc(chatCode).set({
-        'code': chatCode,
-        'name': name,
-        'ownerId': user.uid,
-        'participantIds': [user.uid],
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // A random code can collide with an existing chat, and writing over
+      // it would wipe that chat, so claim the code only if it is free.
+      String? chatCode;
+      for (var attempt = 0; attempt < 5 && chatCode == null; attempt++) {
+        final candidate = _generateChatCode();
+        final chatRef = _firestore.collection('chats').doc(candidate);
+
+        final created = await _firestore.runTransaction<bool>((tx) async {
+          final existing = await tx.get(chatRef);
+          if (existing.exists) return false;
+
+          tx.set(chatRef, {
+            'code': candidate,
+            'name': name,
+            'ownerId': user.uid,
+            'participantIds': [user.uid],
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          return true;
+        });
+
+        if (created) chatCode = candidate;
+      }
+
+      if (chatCode == null) {
+        emit(ChatError('Failed to create chat'));
+        return;
+      }
 
       emit(ChatCreated(chatCode, name));
     } catch (e) {
@@ -260,6 +284,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         (myReadAt == null || lastAt.isAfter(myReadAt));
 
     return ChatSummary(
+      isOwner: uid != null && data['ownerId'] == uid,
       code: (data['code'] as String?) ?? doc.id,
       name: name.isEmpty ? null : name,
       lastMessage: last?['text'] as String?,
@@ -420,9 +445,57 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       onError: (Object _) {},
     );
 
-    _messagesSubscription = chatRef
+    _messagesLimit = _messagesPageSize;
+    _hasMoreMessages = false;
+    _loadingMoreMessages = false;
+    _subscribeToMessages();
+  }
+
+  static const _messagesPageSize = 30;
+
+  /// How many of the latest messages the open chat currently listens to.
+  int _messagesLimit = _messagesPageSize;
+  bool _hasMoreMessages = false;
+  bool _loadingMoreMessages = false;
+
+  void _emitMessages(Emitter<ChatState> emit) {
+    emit(
+      MessagesLoaded(
+        _messages,
+        seenAt: _othersReadAt,
+        hasMore: _hasMoreMessages,
+        isLoadingMore: _loadingMoreMessages,
+      ),
+    );
+  }
+
+  /// Widens the live window by one page of older messages.
+  Future<void> _onLoadMoreMessages(
+    LoadMoreMessagesEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    if (state is! MessagesLoaded) return;
+    if (!_hasMoreMessages || _loadingMoreMessages) return;
+
+    _loadingMoreMessages = true;
+    _messagesLimit += _messagesPageSize;
+    _emitMessages(emit);
+
+    await _messagesSubscription?.cancel();
+    _subscribeToMessages();
+  }
+
+  /// Listens to the latest [_messagesLimit] messages of the open chat.
+  void _subscribeToMessages() {
+    final chatCode = _openChatCode;
+    if (chatCode == null) return;
+
+    _messagesSubscription = _firestore
+        .collection('chats')
+        .doc(chatCode)
         .collection('messages')
         .orderBy('createdAt')
+        .limitToLast(_messagesLimit)
         .snapshots()
         .listen((snapshot) {
       final messages = snapshot.docs.map((doc) {

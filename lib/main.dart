@@ -40,8 +40,9 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp.router(
-        darkTheme: ThemeData.dark(),
-        themeMode: ThemeMode.system,
+        // The app only has a light design so far; a system dark theme would
+        // lack the typography extension every screen relies on.
+        themeMode: ThemeMode.light,
         routerConfig: appRouter.config(),
         theme: ThemeData(
           textTheme: GoogleFonts.interTextTheme(),

@@ -50,7 +50,6 @@ class ChatScreenView extends StatefulWidget {
 class _ChatScreenViewState extends State<ChatScreenView> {
   final TextEditingController chatController = TextEditingController();
   final ScrollController _messagesScrollController = ScrollController();
-  int _lastMessagesCount = 0;
 
   void _handleExitToChats() {
     context.router.replaceAll([const ChatsRoute()]);
@@ -62,20 +61,28 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     context.read<ChatBloc>().add(DeleteChatEvent(widget.chatCode));
   }
 
-  void _scrollToBottom({bool animated = true}) {
+  @override
+  void initState() {
+    super.initState();
+    _messagesScrollController.addListener(_loadMoreWhenNearTop);
+  }
+
+  /// The list is reversed, so the end of the scroll extent is the oldest
+  /// loaded message.
+  void _loadMoreWhenNearTop() {
+    final position = _messagesScrollController.position;
+    if (position.pixels < position.maxScrollExtent - 300) return;
+    context.read<ChatBloc>().add(const LoadMoreMessagesEvent());
+  }
+
+  void _scrollToBottom() {
     if (!_messagesScrollController.hasClients) return;
 
-    final targetOffset = _messagesScrollController.position.maxScrollExtent;
-    if (animated) {
-      _messagesScrollController.animateTo(
-        targetOffset,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-      return;
-    }
-
-    _messagesScrollController.jumpTo(targetOffset);
+    _messagesScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -118,14 +125,6 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             if (state is ChatDeleted) {
               _handleExitToChats();
             }
-            if (state is MessagesLoaded && state.messages.isNotEmpty) {
-              final hasNewMessages =
-                  state.messages.length != _lastMessagesCount;
-              _lastMessagesCount = state.messages.length;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _scrollToBottom(animated: hasNewMessages);
-              });
-            }
           },
           child: Column(
             children: [
@@ -141,16 +140,38 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                         return const Center(child: Text('No messages yet'));
                       }
 
+                      final messages = state.messages;
+                      final myId = FirebaseAuth.instance.currentUser?.uid;
+
+                      // Reversed, so the newest message stays pinned to the
+                      // bottom and older pages load above without moving
+                      // what the user is looking at.
                       return ListView.builder(
                         controller: _messagesScrollController,
+                        reverse: true,
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                        itemCount: state.messages.length,
-                        itemBuilder: (context, index) {
-                          final message = state.messages[index];
-                          final myId = FirebaseAuth.instance.currentUser?.uid;
+                        itemCount:
+                            messages.length + (state.isLoadingMore ? 1 : 0),
+                        itemBuilder: (context, reversedIndex) {
+                          if (reversedIndex == messages.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: SizedBox.square(
+                                  dimension: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          final index = messages.length - 1 - reversedIndex;
+                          final message = messages[index];
                           final isMe = message.senderId == myId;
                           final previous =
-                              index > 0 ? state.messages[index - 1] : null;
+                              index > 0 ? messages[index - 1] : null;
                           final date = message.createdAt ?? DateTime.now();
                           final previousDate = previous == null
                               ? null
@@ -159,6 +180,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                               !DateUtils.isSameDay(previousDate, date);
 
                           return Column(
+                            key: ValueKey(message.id),
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               if (isNewDay) MessageDatePill(date: date),

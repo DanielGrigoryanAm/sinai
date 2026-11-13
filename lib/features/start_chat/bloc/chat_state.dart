@@ -46,10 +46,28 @@ class MessagesLoaded extends ChatState {
   /// sent up to this moment have been seen. Null when nobody else has.
   final DateTime? seenAt;
 
-  const MessagesLoaded(this.messages, {this.seenAt});
+  /// Whether older messages exist beyond the loaded ones.
+  final bool hasMore;
+  final bool isLoadingMore;
+
+  const MessagesLoaded(
+    this.messages, {
+    this.seenAt,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+  });
 
   @override
-  List<Object> get props => [messages, seenAt ?? 0];
+  List<Object> get props => [messages, seenAt ?? 0, hasMore, isLoadingMore];
+}
+
+class UserNameSaved extends ChatState {
+  final String name;
+
+  const UserNameSaved(this.name);
+
+  @override
+  List<Object> get props => [name];
 }
 
 class ChatsLoaded extends ChatState {

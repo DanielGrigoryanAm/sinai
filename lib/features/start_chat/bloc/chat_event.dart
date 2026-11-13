@@ -47,6 +47,11 @@ class MessagesSubscribeEvent extends ChatEvent {
   List<Object> get props => [chatCode];
 }
 
+/// Asks for one more page of older messages in the open chat.
+class LoadMoreMessagesEvent extends ChatEvent {
+  const LoadMoreMessagesEvent();
+}
+
 class SetUserNameEvent extends ChatEvent {
   final String name;
 

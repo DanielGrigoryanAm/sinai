@@ -10,6 +10,7 @@ class ChatSummary extends Equatable {
     this.lastSenderName,
     this.lastActivityAt,
     this.hasUnread = false,
+    this.isOwner = false,
   });
 
   final String code;
@@ -29,6 +30,9 @@ class ChatSummary extends Equatable {
   /// visit to the chat.
   final bool hasUnread;
 
+  /// Owners delete the chat for everyone; other participants only leave.
+  final bool isOwner;
+
   String get title => name ?? code;
 
   @override
@@ -40,5 +44,6 @@ class ChatSummary extends Equatable {
         lastSenderName,
         lastActivityAt,
         hasUnread,
+        isOwner,
       ];
 }
