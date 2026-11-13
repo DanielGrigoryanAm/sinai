@@ -119,7 +119,8 @@ class _ChatScreenViewState extends State<ChatScreenView> {
               _handleExitToChats();
             }
             if (state is MessagesLoaded && state.messages.isNotEmpty) {
-              final hasNewMessages = state.messages.length != _lastMessagesCount;
+              final hasNewMessages =
+                  state.messages.length != _lastMessagesCount;
               _lastMessagesCount = state.messages.length;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _scrollToBottom(animated: hasNewMessages);
@@ -142,7 +143,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
                       return ListView.builder(
                         controller: _messagesScrollController,
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                         itemCount: state.messages.length,
                         itemBuilder: (context, index) {
                           final message = state.messages[index];
@@ -164,7 +165,11 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                               MessageBubble(
                                 message: message,
                                 isMe: isMe,
-                                showName: isNewDay ||
+                                isSeen: isMe &&
+                                    message.createdAt != null &&
+                                    state.seenAt != null &&
+                                    !state.seenAt!.isBefore(message.createdAt!),
+                                startsGroup: isNewDay ||
                                     previous?.senderId != message.senderId,
                               ),
                             ],

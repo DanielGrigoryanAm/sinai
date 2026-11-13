@@ -186,9 +186,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
               extentRatio: 0.2,
               children: [
                 SlidableAction(
-                  onPressed: (_) => context
-                      .read<ChatBloc>()
-                      .add(DeleteChatEvent(chat.code)),
+                  onPressed: (_) =>
+                      context.read<ChatBloc>().add(DeleteChatEvent(chat.code)),
                   backgroundColor: const Color(0xFFDC2626),
                   foregroundColor: Colors.white,
                   icon: Icons.delete_outline,
@@ -332,14 +331,39 @@ class _ChatRow extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      _preview(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: text.bodyLarge.copyWith(
-                        fontSize: 15,
-                        color: colors.textSecondary,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _preview(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.bodyLarge.copyWith(
+                              fontSize: 15,
+                              fontWeight: chat.hasUnread
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: chat.hasUnread
+                                  ? colors.textPrimary
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                        if (chat.hasUnread) ...[
+                          const SizedBox(width: 12),
+                          Semantics(
+                            label: 'Unread messages',
+                            child: Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: colors.secondary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),

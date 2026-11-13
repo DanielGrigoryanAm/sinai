@@ -2,7 +2,7 @@ part of 'chat_bloc.dart';
 
 sealed class ChatState extends Equatable {
   const ChatState();
-  
+
   @override
   List<Object> get props => [];
 }
@@ -42,10 +42,14 @@ final class ChatError extends ChatState {
 class MessagesLoaded extends ChatState {
   final List<ChatMessage> messages;
 
-  const MessagesLoaded(this.messages);
+  /// Latest time another participant read the chat; the user's own messages
+  /// sent up to this moment have been seen. Null when nobody else has.
+  final DateTime? seenAt;
+
+  const MessagesLoaded(this.messages, {this.seenAt});
 
   @override
-  List<Object> get props => [messages];
+  List<Object> get props => [messages, seenAt ?? 0];
 }
 
 class ChatsLoaded extends ChatState {

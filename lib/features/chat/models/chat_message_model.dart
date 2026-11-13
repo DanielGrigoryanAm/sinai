@@ -9,7 +9,7 @@ class ChatMessage {
     required this.id,
     required this.text,
     required this.senderId,
-    required this.senderName, 
+    required this.senderName,
     required this.createdAt,
   });
 }

@@ -170,8 +170,8 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                             ),
                             Text(
                               isOwner ? 'Delete chat' : 'Leave chat',
-                              style: text.titleSmall
-                                  .copyWith(color: _dangerColor),
+                              style:
+                                  text.titleSmall.copyWith(color: _dangerColor),
                             ),
                           ],
                         ),

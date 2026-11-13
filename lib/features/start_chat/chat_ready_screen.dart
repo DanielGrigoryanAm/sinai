@@ -145,9 +145,8 @@ class _ChatReadyScreenState extends State<ChatReadyScreen> {
                           children: [
                             Expanded(
                               child: _OutlineAction(
-                                icon: _copied
-                                    ? Icons.check
-                                    : Icons.copy_rounded,
+                                icon:
+                                    _copied ? Icons.check : Icons.copy_rounded,
                                 label: _copied ? 'Copied' : 'Copy',
                                 onTap: _copyCode,
                               ),

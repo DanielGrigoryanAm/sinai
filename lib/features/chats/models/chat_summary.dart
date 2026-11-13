@@ -9,6 +9,7 @@ class ChatSummary extends Equatable {
     this.lastSenderId,
     this.lastSenderName,
     this.lastActivityAt,
+    this.hasUnread = false,
   });
 
   final String code;
@@ -24,9 +25,20 @@ class ChatSummary extends Equatable {
   /// Time of the last message, or of chat creation when there are none.
   final DateTime? lastActivityAt;
 
+  /// The last message is from someone else and newer than the user's last
+  /// visit to the chat.
+  final bool hasUnread;
+
   String get title => name ?? code;
 
   @override
-  List<Object?> get props =>
-      [code, name, lastMessage, lastSenderId, lastSenderName, lastActivityAt];
+  List<Object?> get props => [
+        code,
+        name,
+        lastMessage,
+        lastSenderId,
+        lastSenderName,
+        lastActivityAt,
+        hasUnread,
+      ];
 }

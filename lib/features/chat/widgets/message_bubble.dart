@@ -3,23 +3,31 @@ import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
-/// A single chat message: bubble with the time underneath and, for other
-/// people's messages, an optional sender name above.
+/// A single chat message: bubble with the time inside and, for other
+/// people's messages, the sender name above the first one of a run.
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
     required this.message,
     required this.isMe,
-    required this.showName,
+    required this.startsGroup,
+    this.isSeen = false,
   });
 
   static const _myBubbleColor = Color(0xFF9CC4F0);
-  static const _radius = Radius.circular(20);
+  static const _radius = Radius.circular(15);
   static const _tailRadius = Radius.circular(6);
 
   final ChatMessage message;
   final bool isMe;
-  final bool showName;
+
+  /// First message in a run from the same sender (or of a new day); only
+  /// this one gets the sharp top corner.
+  final bool startsGroup;
+
+  /// Whether another participant has read this message. Only shown on the
+  /// user's own messages.
+  final bool isSeen;
 
   String _time(BuildContext context) {
     final time = message.createdAt;
@@ -36,9 +44,13 @@ class MessageBubble extends StatelessWidget {
     final colors = context.colorTheme;
     final text = context.textTheme;
     final maxWidth = MediaQuery.sizeOf(context).width * 0.76;
+    final metaColor = isMe
+        ? const Color(0xFF1B2030).withAlpha(140)
+        : colors.textSecondary.withAlpha(190);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      // Messages of one sender sit close together; a new sender gets air.
+      padding: EdgeInsets.only(top: startsGroup ? 12 : 4),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: ConstrainedBox(
@@ -47,7 +59,7 @@ class MessageBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (showName && !isMe)
+              if (startsGroup && !isMe)
                 Padding(
                   padding: const EdgeInsets.only(left: 6, bottom: 4),
                   child: Text(
@@ -60,15 +72,14 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
                 decoration: BoxDecoration(
                   color: isMe ? _myBubbleColor : colors.backgroundSecondary,
                   borderRadius: BorderRadius.only(
-                    topLeft: _radius,
-                    topRight: _radius,
-                    bottomLeft: isMe ? _radius : _tailRadius,
-                    bottomRight: isMe ? _tailRadius : _radius,
+                    topLeft: !isMe && startsGroup ? _tailRadius : _radius,
+                    topRight: isMe && startsGroup ? _tailRadius : _radius,
+                    bottomLeft: _radius,
+                    bottomRight: _radius,
                   ),
                   boxShadow: const [
                     BoxShadow(
@@ -78,23 +89,48 @@ class MessageBubble extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Text(
-                  message.text,
-                  style: text.bodyLarge.copyWith(
-                    height: 1.4,
-                    color: const Color(0xFF1B2030),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
-                child: Text(
-                  _time(context),
-                  style: text.bodySmall.copyWith(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textSecondary.withAlpha(150),
-                  ),
+                // The time sits on the last line when it fits next to the
+                // text and drops to its own line otherwise.
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  spacing: 10,
+                  runSpacing: 2,
+                  children: [
+                    Text(
+                      message.text,
+                      style: text.bodyLarge.copyWith(
+                        height: 1.4,
+                        color: const Color(0xFF1B2030),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 3,
+                        children: [
+                          Text(
+                            _time(context),
+                            style: text.bodySmall.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: metaColor,
+                            ),
+                          ),
+                          // One check: sent. Two checks: seen.
+                          if (isMe && message.createdAt != null)
+                            Icon(
+                              isSeen ? Icons.done_all : Icons.check,
+                              size: 15,
+                              color:
+                                  isSeen ? const Color(0xFF1D5FA8) : metaColor,
+                              semanticLabel: isSeen ? 'Seen' : 'Sent',
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -129,7 +165,7 @@ class MessageDatePill extends StatelessWidget {
     final colors = context.colorTheme;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 20),
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),

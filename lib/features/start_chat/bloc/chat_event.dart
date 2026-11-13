@@ -78,3 +78,33 @@ class _MessagesUpdatedInternal extends ChatEvent {
   @override
   List<Object> get props => [messages];
 }
+
+/// internal event
+class _ChatsSnapshotInternal extends ChatEvent {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+
+  const _ChatsSnapshotInternal(this.docs);
+
+  @override
+  List<Object> get props => [docs];
+}
+
+/// internal event
+class _ChatsFailedInternal extends ChatEvent {
+  final String message;
+
+  const _ChatsFailedInternal(this.message);
+
+  @override
+  List<Object> get props => [message];
+}
+
+/// internal event
+class _ChatsChangedInternal extends ChatEvent {
+  const _ChatsChangedInternal();
+}
+
+/// internal event
+class _ReadMarksUpdatedInternal extends ChatEvent {
+  const _ReadMarksUpdatedInternal();
+}

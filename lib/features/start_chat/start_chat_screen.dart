@@ -66,7 +66,8 @@ class _StartChatScreenState extends State<StartChatScreen> {
                   CustomButton.primary(
                     text: 'Join',
                     trailingIcon: Icons.arrow_forward,
-                    onTap: code.isNotEmpty ? () => _onJoin(context, code) : null,
+                    onTap:
+                        code.isNotEmpty ? () => _onJoin(context, code) : null,
                   ),
                   SizedBox(height: 30),
                   Row(
@@ -86,8 +87,7 @@ class _StartChatScreenState extends State<StartChatScreen> {
                   CustomButton.outline(
                     text: 'Create chat',
                     leadingIcon: Icons.add,
-                    onTap: () =>
-                        context.router.push(const CreateChatRoute()),
+                    onTap: () => context.router.push(const CreateChatRoute()),
                   ),
                 ],
               ),
