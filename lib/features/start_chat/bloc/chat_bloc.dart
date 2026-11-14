@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
@@ -23,6 +24,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<JoinChatEvent>(_onJoinChat);
     on<SendMessageEvent>(_onSendMessage);
     on<SendImageEvent>(_onSendImage);
+    on<SendVoiceEvent>(_onSendVoice);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
     on<SetUserNameEvent>(_onSetUserName);
     on<GetChatsEvent>(_onGetChats);
@@ -305,6 +307,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     if (message == null) return null;
     final text = (message['text'] as String?) ?? '';
     if (text.isEmpty && message['imageUrl'] != null) return 'Photo';
+    if (text.isEmpty && message['audioUrl'] != null) return 'Voice message';
     return text;
   }
 
@@ -417,7 +420,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
-  /// Pictures currently being uploaded from this device.
+  /// Pictures and voice messages currently being uploaded from this device.
   int _uploadingImages = 0;
 
   Future<void> _onSendImage(
@@ -475,8 +478,65 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       if (state is MessagesLoaded) _emitMessages(emit);
     } catch (e) {
       _uploadingImages--;
+      debugPrint('Sending the photo failed: $e');
       emit(ChatError('Failed to send the photo'));
       if (_openChatCode != null) _emitMessages(emit);
+    }
+  }
+
+  Future<void> _onSendVoice(
+    SendVoiceEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      emit(ChatError('User not authenticated'));
+      return;
+    }
+
+    _uploadingImages++;
+    if (state is MessagesLoaded) _emitMessages(emit);
+
+    final recording = File(event.filePath);
+
+    try {
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.m4a';
+      final ref = FirebaseStorage.instance
+          .ref('chats/${event.chatCode}/audio/$fileName');
+
+      await ref.putFile(recording, SettableMetadata(contentType: 'audio/mp4'));
+      final audioUrl = await ref.getDownloadURL();
+
+      final senderName =
+          user.displayName?.isNotEmpty == true ? user.displayName! : 'Guest';
+
+      await _firestore
+          .collection('chats')
+          .doc(event.chatCode)
+          .collection('messages')
+          .add({
+        'text': '',
+        'audioUrl': audioUrl,
+        'audioDurationMs': event.duration.inMilliseconds,
+        'senderId': user.uid,
+        'senderName': senderName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      _uploadingImages--;
+      if (state is MessagesLoaded) _emitMessages(emit);
+    } catch (e) {
+      _uploadingImages--;
+      debugPrint('Sending the voice message failed: $e');
+      emit(ChatError('Failed to send the voice message'));
+      if (_openChatCode != null) _emitMessages(emit);
+    } finally {
+      // The temporary recording is no longer needed either way.
+      try {
+        if (await recording.exists()) await recording.delete();
+      } catch (_) {}
     }
   }
 
@@ -588,6 +648,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           imageUrl: data['imageUrl'] as String?,
           imageWidth: (data['imageWidth'] as num?)?.toInt(),
           imageHeight: (data['imageHeight'] as num?)?.toInt(),
+          audioUrl: data['audioUrl'] as String?,
+          audioDurationMs: (data['audioDurationMs'] as num?)?.toInt(),
         );
       }).toList();
 

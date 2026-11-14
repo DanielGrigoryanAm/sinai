@@ -13,6 +13,10 @@ class ChatMessage {
   final int? imageWidth;
   final int? imageHeight;
 
+  /// Download URL of the voice recording; null for other messages.
+  final String? audioUrl;
+  final int? audioDurationMs;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -22,7 +26,11 @@ class ChatMessage {
     this.imageUrl,
     this.imageWidth,
     this.imageHeight,
+    this.audioUrl,
+    this.audioDurationMs,
   });
+
+  bool get isVoice => audioUrl != null && audioUrl!.isNotEmpty;
 
   bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;
 }

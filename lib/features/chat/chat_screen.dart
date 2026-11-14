@@ -6,6 +6,7 @@ import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
 import 'package:sinai/features/chat/widgets/message_bubble.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
+import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -87,6 +88,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
   @override
   void dispose() {
+    VoicePlayer.instance.stop();
     chatController.dispose();
     _messagesScrollController.dispose();
     super.dispose();
@@ -226,7 +228,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                           ),
                         ),
                         Text(
-                          'Sending photo…',
+                          'Sending…',
                           style: TextStyle(
                             fontSize: 13,
                             color: context.colorTheme.textSecondary,

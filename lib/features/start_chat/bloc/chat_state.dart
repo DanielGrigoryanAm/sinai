@@ -50,7 +50,7 @@ class MessagesLoaded extends ChatState {
   final bool hasMore;
   final bool isLoadingMore;
 
-  /// A picture picked on this device is still uploading.
+  /// A picture or voice message from this device is still uploading.
   final bool isSendingImage;
 
   const MessagesLoaded(

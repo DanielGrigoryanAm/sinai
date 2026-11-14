@@ -54,6 +54,24 @@ class SendImageEvent extends ChatEvent {
   List<Object> get props => [chatCode, bytes, contentType];
 }
 
+/// Uploads a recorded voice message and posts it to the chat.
+class SendVoiceEvent extends ChatEvent {
+  final String chatCode;
+
+  /// Local path of the recording; deleted once it has been sent.
+  final String filePath;
+  final Duration duration;
+
+  const SendVoiceEvent({
+    required this.chatCode,
+    required this.filePath,
+    required this.duration,
+  });
+
+  @override
+  List<Object> get props => [chatCode, filePath, duration];
+}
+
 class MessagesSubscribeEvent extends ChatEvent {
   final String chatCode;
 

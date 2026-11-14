@@ -1,8 +1,12 @@
-const {onDocumentCreated} = require('firebase-functions/v2/firestore');
+const {
+  onDocumentCreated,
+  onDocumentDeleted,
+} = require('firebase-functions/v2/firestore');
 const {logger} = require('firebase-functions');
 const {initializeApp} = require('firebase-admin/app');
 const {getFirestore, FieldValue} = require('firebase-admin/firestore');
 const {getMessaging} = require('firebase-admin/messaging');
+const {getStorage} = require('firebase-admin/storage');
 
 initializeApp();
 
@@ -55,9 +59,10 @@ exports.notifyNewMessage = onDocumentCreated(
 
       const chatName = (chat.name || '').trim();
       const senderName = (message.senderName || '').trim() || 'Someone';
-      // Picture messages have no text of their own.
+      // Picture and voice messages have no text of their own.
       const text = String(message.text || '') ||
-        (message.imageUrl ? '📷 Photo' : '');
+        (message.imageUrl ? '📷 Photo' : '') ||
+        (message.audioUrl ? '🎤 Voice message' : '');
       const body = text.length > MAX_BODY_LENGTH ?
         `${text.slice(0, MAX_BODY_LENGTH)}…` :
         text;
@@ -99,5 +104,28 @@ exports.notifyNewMessage = onDocumentCreated(
         sent: response.successCount,
         failed: response.failureCount,
       });
+    },
+);
+
+/**
+ * Cleans up after a chat is deleted by its owner: removes the photos and
+ * voice messages stored under `chats/{chatId}/` in Cloud Storage, and any
+ * messages the app did not manage to delete itself.
+ *
+ * Leaving a chat does not delete its document, so this never runs for it.
+ */
+exports.cleanUpDeletedChat = onDocumentDeleted(
+    'chats/{chatId}',
+    async (event) => {
+      const {chatId} = event.params;
+
+      // The trailing slash keeps "ABC" from also matching "ABCD".
+      await getStorage().bucket().deleteFiles({prefix: `chats/${chatId}/`});
+
+      await getFirestore().recursiveDelete(
+          getFirestore().collection('chats').doc(chatId).collection('messages'),
+      );
+
+      logger.info('Deleted chat cleaned up', {chatId});
     },
 );

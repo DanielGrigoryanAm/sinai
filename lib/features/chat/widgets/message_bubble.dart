@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
+import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -198,6 +199,19 @@ class MessageBubble extends StatelessWidget {
                 ),
               if (message.isImage)
                 _buildImage(context, bubbleRadius)
+              else if (message.isVoice)
+                _VoiceBubble(
+                  message: message,
+                  color: isMe ? _myBubbleColor : colors.backgroundSecondary,
+                  radius: bubbleRadius,
+                  accentColor:
+                      isMe ? const Color(0xFF1D5FA8) : colors.secondary,
+                  meta: _buildMeta(
+                    context,
+                    color: metaColor,
+                    seenColor: const Color(0xFF1D5FA8),
+                  ),
+                )
               else
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
@@ -235,6 +249,132 @@ class MessageBubble extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Voice message: play/pause button, progress and length.
+class _VoiceBubble extends StatelessWidget {
+  const _VoiceBubble({
+    required this.message,
+    required this.color,
+    required this.radius,
+    required this.accentColor,
+    required this.meta,
+  });
+
+  final ChatMessage message;
+  final Color color;
+  final BorderRadius radius;
+  final Color accentColor;
+
+  /// Time and sent/seen checks, built by the parent bubble.
+  final Widget meta;
+
+  static String _format(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Future<void> _toggle(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await VoicePlayer.instance.toggle(message.audioUrl!);
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not play the voice message')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = context.textTheme;
+    final recorded = Duration(milliseconds: message.audioDurationMs ?? 0);
+
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.fromLTRB(10, 10, 12, 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: radius,
+        boxShadow: MessageBubble._shadow,
+      ),
+      child: ValueListenableBuilder<VoicePlayback>(
+        valueListenable: VoicePlayer.instance.playback,
+        builder: (context, playback, _) {
+          final isCurrent = playback.url == message.audioUrl;
+          final isPlaying = isCurrent && playback.isPlaying;
+
+          // The player reports the real length once loaded; until then
+          // fall back to the length measured while recording.
+          final total = isCurrent && playback.duration > Duration.zero
+              ? playback.duration
+              : recorded;
+          final position = isCurrent ? playback.position : Duration.zero;
+          final progress = total.inMilliseconds == 0
+              ? 0.0
+              : (position.inMilliseconds / total.inMilliseconds)
+                  .clamp(0.0, 1.0);
+
+          return Row(
+            children: [
+              Material(
+                color: accentColor,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => _toggle(context),
+                  child: Padding(
+                    padding: const EdgeInsets.all(9),
+                    child: Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 24,
+                      semanticLabel: isPlaying ? 'Pause' : 'Play',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 4,
+                        color: accentColor,
+                        backgroundColor: accentColor.withAlpha(50),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          _format(isCurrent ? position : total),
+                          style: text.bodySmall.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF1B2030).withAlpha(170),
+                          ),
+                        ),
+                        const Spacer(),
+                        meta,
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
