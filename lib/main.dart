@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:sinai/auth/bloc/auth_bloc.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
+import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/text_theme.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -24,6 +25,10 @@ void main() async {
 
   final nameConfirmed = await OnboardingPrefs.isNameConfirmed();
   appRouter = AppRouter(showOnboarding: !nameConfirmed);
+
+  NotificationService.instance.onOpenChat = (chatCode, chatName) {
+    appRouter.push(ChatRoute(chatCode: chatCode, chatName: chatName));
+  };
 
   runApp(const MyApp());
 }

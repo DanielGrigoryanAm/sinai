@@ -7,6 +7,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
+import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -23,6 +24,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
   final TextEditingController _searchController = TextEditingController();
   DateTime? _lastBackPressedAt;
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Asked here rather than at launch, so the permission prompt appears
+    // once the user is past onboarding and sees what it is for.
+    NotificationService.instance.init();
+  }
 
   @override
   void dispose() {
