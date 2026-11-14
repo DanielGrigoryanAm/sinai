@@ -26,6 +26,8 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Sinai uses the camera to take photos you send in chats.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Sinai saves photos from chats to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Sinai accesses your photos so you can send them in chats.</string>
 	<key>LSRequiresIPhoneOS</key>
