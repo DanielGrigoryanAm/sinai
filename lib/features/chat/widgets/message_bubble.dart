@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
@@ -110,22 +111,21 @@ class MessageBubble extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Image.network(
-                imageUrl,
+              // Cached on disk, so a photo is downloaded only once.
+              CachedNetworkImage(
+                imageUrl: imageUrl,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return Center(
-                    child: SizedBox.square(
-                      dimension: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: colors.secondary,
-                      ),
+                fadeInDuration: const Duration(milliseconds: 150),
+                placeholder: (context, url) => Center(
+                  child: SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: colors.secondary,
                     ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Center(
+                  ),
+                ),
+                errorWidget: (context, url, error) => Center(
                   child: Icon(
                     Icons.broken_image_outlined,
                     color: colors.textSecondary,

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
@@ -92,16 +93,16 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
         child: InteractiveViewer(
           minScale: 1,
           maxScale: 5,
-          child: Image.network(
-            widget.imageUrl,
+          // Shares the disk cache with the chat bubble, so opening a
+          // photo that is already on screen shows it at once.
+          child: CachedNetworkImage(
+            imageUrl: widget.imageUrl,
             fit: BoxFit.contain,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              );
-            },
-            errorBuilder: (context, error, stackTrace) => const Icon(
+            fadeInDuration: Duration.zero,
+            placeholder: (context, url) => const Center(
+              child: CircularProgressIndicator(color: Colors.white),
+            ),
+            errorWidget: (context, url, error) => const Icon(
               Icons.broken_image_outlined,
               color: Colors.white54,
               size: 48,
