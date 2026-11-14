@@ -17,6 +17,20 @@ class MessageField extends StatelessWidget {
   final String chatCode;
   final VoidCallback? onMessageSent;
 
+  void _send(BuildContext context) {
+    final text = chatController.text.trim();
+    if (text.isEmpty) return;
+    context.read<ChatBloc>().add(
+          SendMessageEvent(
+            chatCode: chatCode,
+            text: text,
+          ),
+        );
+
+    chatController.clear();
+    onMessageSent?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -34,6 +48,11 @@ class MessageField extends StatelessWidget {
       child: TextField(
         cursorColor: context.colorTheme.secondary,
         controller: chatController,
+        textInputAction: TextInputAction.send,
+        textCapitalization: TextCapitalization.sentences,
+        // Handling the action here instead of onSubmitted keeps the keyboard
+        // open, so several messages can be sent in a row.
+        onEditingComplete: () => _send(context),
         decoration: InputDecoration(
             filled: true,
             fillColor: context.colorTheme.backgroundSecondary,
@@ -52,19 +71,7 @@ class MessageField extends StatelessWidget {
                   height: 35,
                   width: 35,
                 ),
-                onPressed: () {
-                  final text = chatController.text.trim();
-                  if (text.isEmpty) return;
-                  context.read<ChatBloc>().add(
-                        SendMessageEvent(
-                          chatCode: chatCode,
-                          text: text,
-                        ),
-                      );
-
-                  chatController.clear();
-                  onMessageSent?.call();
-                },
+                onPressed: () => _send(context),
               ),
             )),
       ),
