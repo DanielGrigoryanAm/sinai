@@ -204,6 +204,39 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                   },
                 ),
               ),
+              BlocBuilder<ChatBloc, ChatState>(
+                buildWhen: (previous, current) =>
+                    (previous is MessagesLoaded && previous.isSendingImage) !=
+                    (current is MessagesLoaded && current.isSendingImage),
+                builder: (context, state) {
+                  if (state is! MessagesLoaded || !state.isSendingImage) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      spacing: 10,
+                      children: [
+                        SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: context.colorTheme.secondary,
+                          ),
+                        ),
+                        Text(
+                          'Sending photo…',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.colorTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(15),

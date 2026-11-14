@@ -28,15 +28,6 @@
       }
     },
     {
-      "identity" : "flutterfire",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/firebase/flutterfire",
-      "state" : {
-        "revision" : "1fc2adfbeb6e132e49ba72d04c727227f9827b3e",
-        "version" : "4.2.1-firebase-core-swift"
-      }
-    },
-    {
       "identity" : "google-ads-on-device-conversion-ios-sdk",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/googleads/google-ads-on-device-conversion-ios-sdk",

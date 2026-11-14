@@ -24,6 +24,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Sinai uses the camera to take photos you send in chats.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sinai accesses your photos so you can send them in chats.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

@@ -55,7 +55,9 @@ exports.notifyNewMessage = onDocumentCreated(
 
       const chatName = (chat.name || '').trim();
       const senderName = (message.senderName || '').trim() || 'Someone';
-      const text = String(message.text || '');
+      // Picture messages have no text of their own.
+      const text = String(message.text || '') ||
+        (message.imageUrl ? '📷 Photo' : '');
       const body = text.length > MAX_BODY_LENGTH ?
         `${text.slice(0, MAX_BODY_LENGTH)}…` :
         text;

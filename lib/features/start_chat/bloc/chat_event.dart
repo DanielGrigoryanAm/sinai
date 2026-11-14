@@ -38,6 +38,22 @@ class SendMessageEvent extends ChatEvent {
   List<Object> get props => [chatCode, text];
 }
 
+/// Uploads a picture and posts it to the chat as a message.
+class SendImageEvent extends ChatEvent {
+  final String chatCode;
+  final Uint8List bytes;
+  final String contentType;
+
+  const SendImageEvent({
+    required this.chatCode,
+    required this.bytes,
+    this.contentType = 'image/jpeg',
+  });
+
+  @override
+  List<Object> get props => [chatCode, bytes, contentType];
+}
+
 class MessagesSubscribeEvent extends ChatEvent {
   final String chatCode;
 

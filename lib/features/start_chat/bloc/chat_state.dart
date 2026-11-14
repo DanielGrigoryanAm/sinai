@@ -50,15 +50,25 @@ class MessagesLoaded extends ChatState {
   final bool hasMore;
   final bool isLoadingMore;
 
+  /// A picture picked on this device is still uploading.
+  final bool isSendingImage;
+
   const MessagesLoaded(
     this.messages, {
     this.seenAt,
     this.hasMore = false,
     this.isLoadingMore = false,
+    this.isSendingImage = false,
   });
 
   @override
-  List<Object> get props => [messages, seenAt ?? 0, hasMore, isLoadingMore];
+  List<Object> get props => [
+        messages,
+        seenAt ?? 0,
+        hasMore,
+        isLoadingMore,
+        isSendingImage,
+      ];
 }
 
 class UserNameSaved extends ChatState {

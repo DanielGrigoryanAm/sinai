@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
@@ -19,6 +22,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<CreateChatEvent>(_onCreateChat);
     on<JoinChatEvent>(_onJoinChat);
     on<SendMessageEvent>(_onSendMessage);
+    on<SendImageEvent>(_onSendImage);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
     on<SetUserNameEvent>(_onSetUserName);
     on<GetChatsEvent>(_onGetChats);
@@ -287,12 +291,21 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       isOwner: uid != null && data['ownerId'] == uid,
       code: (data['code'] as String?) ?? doc.id,
       name: name.isEmpty ? null : name,
-      lastMessage: last?['text'] as String?,
+      lastMessage: _previewText(last),
       lastSenderId: last?['senderId'] as String?,
       lastSenderName: last?['senderName'] as String?,
       lastActivityAt: lastAt ?? createdAt,
       hasUnread: hasUnread,
     );
+  }
+
+  /// Text shown for a message in the chats list; pictures have no text of
+  /// their own.
+  String? _previewText(Map<String, dynamic>? message) {
+    if (message == null) return null;
+    final text = (message['text'] as String?) ?? '';
+    if (text.isEmpty && message['imageUrl'] != null) return 'Photo';
+    return text;
   }
 
   /// When each participant last read the chat, by user id.
@@ -399,6 +412,71 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       });
     } catch (e) {
       emit(ChatError(e.toString()));
+      // Put the messages back; the error state replaced them on screen.
+      if (_openChatCode != null) _emitMessages(emit);
+    }
+  }
+
+  /// Pictures currently being uploaded from this device.
+  int _uploadingImages = 0;
+
+  Future<void> _onSendImage(
+    SendImageEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      emit(ChatError('User not authenticated'));
+      return;
+    }
+
+    _uploadingImages++;
+    if (state is MessagesLoaded) _emitMessages(emit);
+
+    try {
+      // Decoded only to learn the size, which lets every client reserve
+      // the right space for the picture before it has loaded.
+      final codec = await ui.instantiateImageCodec(event.bytes);
+      final frame = await codec.getNextFrame();
+      final width = frame.image.width;
+      final height = frame.image.height;
+      frame.image.dispose();
+
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.jpg';
+      final ref = FirebaseStorage.instance
+          .ref('chats/${event.chatCode}/images/$fileName');
+
+      await ref.putData(
+        event.bytes,
+        SettableMetadata(contentType: event.contentType),
+      );
+      final imageUrl = await ref.getDownloadURL();
+
+      final senderName =
+          user.displayName?.isNotEmpty == true ? user.displayName! : 'Guest';
+
+      await _firestore
+          .collection('chats')
+          .doc(event.chatCode)
+          .collection('messages')
+          .add({
+        'text': '',
+        'imageUrl': imageUrl,
+        'imageWidth': width,
+        'imageHeight': height,
+        'senderId': user.uid,
+        'senderName': senderName,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      _uploadingImages--;
+      if (state is MessagesLoaded) _emitMessages(emit);
+    } catch (e) {
+      _uploadingImages--;
+      emit(ChatError('Failed to send the photo'));
+      if (_openChatCode != null) _emitMessages(emit);
     }
   }
 
@@ -465,6 +543,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         seenAt: _othersReadAt,
         hasMore: _hasMoreMessages,
         isLoadingMore: _loadingMoreMessages,
+        isSendingImage: _uploadingImages > 0,
       ),
     );
   }
@@ -506,6 +585,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           senderId: data['senderId'] ?? '',
           senderName: data['senderName'] ?? 'Guest',
           createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+          imageUrl: data['imageUrl'] as String?,
+          imageWidth: (data['imageWidth'] as num?)?.toInt(),
+          imageHeight: (data['imageHeight'] as num?)?.toInt(),
         );
       }).toList();
 
