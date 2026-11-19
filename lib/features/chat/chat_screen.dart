@@ -421,7 +421,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                       Positioned.fill(
                         // Starts a little above the input so the fade is
                         // gradual rather than a hard line.
-                        top: -50,
+                        top: -40,
                         child: ProgressiveBlur(
                           color: context.colorTheme.backgroundPrimary,
                         ),

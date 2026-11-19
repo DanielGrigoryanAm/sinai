@@ -15,6 +15,11 @@ class MessageMenuReact extends MessageMenuResult {
   final String reaction;
 }
 
+/// The "+" in the reactions row: open the full emoji list.
+class MessageMenuMoreReactions extends MessageMenuResult {
+  const MessageMenuMoreReactions();
+}
+
 enum MessageMenuAction { reply, copy, edit, delete }
 
 class MessageMenuActionResult extends MessageMenuResult {
@@ -132,33 +137,39 @@ class _ReactionsEntry extends PopupMenuEntry<MessageMenuResult> {
 class _ReactionsEntryState extends State<_ReactionsEntry> {
   @override
   Widget build(BuildContext context) {
+    final current =
+        widget.current == null ? null : Reactions.emojiOf(widget.current!);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          for (final reaction in Reaction.all)
-            Material(
-              color: reaction.id == widget.current
-                  ? reaction.color.withAlpha(36)
-                  : Colors.transparent,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () => Navigator.of(context).pop(
-                  MessageMenuReact(reaction.id),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(
-                    reaction.icon,
-                    size: 24,
-                    color: reaction.color,
-                    semanticLabel: reaction.label,
-                  ),
+          for (final emoji in Reactions.quick)
+            QuickReactionButton(
+              emoji: emoji,
+              selected: emoji == current,
+              onTap: () => Navigator.of(context).pop(MessageMenuReact(emoji)),
+            ),
+          Material(
+            color: context.colorTheme.backgroundPrimary,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => Navigator.of(context).pop(
+                const MessageMenuMoreReactions(),
+              ),
+              child: SizedBox.square(
+                dimension: 32,
+                child: Icon(
+                  Icons.add,
+                  size: 20,
+                  color: context.colorTheme.textSecondary,
+                  semanticLabel: 'More reactions',
                 ),
               ),
             ),
+          ),
         ],
       ),
     );

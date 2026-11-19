@@ -51,8 +51,9 @@ class MessageBubble extends StatelessWidget {
   /// Double tap only ever adds a like, like in most messengers; removing it
   /// is done from the reaction chip or the picker.
   void _like() {
-    if (message.reactions[myId] == Reaction.quick) return;
-    onReact?.call(Reaction.quick);
+    final mine = message.reactions[myId];
+    if (mine != null && Reactions.emojiOf(mine) == Reactions.like) return;
+    onReact?.call(Reactions.like);
   }
 
   /// Message actions; each is null when it does not apply to this message.
@@ -78,6 +79,10 @@ class MessageBubble extends StatelessWidget {
     switch (result) {
       case MessageMenuReact(:final reaction):
         onReact?.call(reaction);
+      case MessageMenuMoreReactions():
+        if (!bubbleContext.mounted) return;
+        final emoji = await showEmojiPicker(bubbleContext);
+        if (emoji != null) onReact?.call(emoji);
       case MessageMenuActionResult(action: MessageMenuAction.reply):
         onReply?.call();
       case MessageMenuActionResult(action: MessageMenuAction.copy):

@@ -11,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 
 part 'chat_event.dart';
@@ -467,7 +468,10 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     for (final candidate in _messages) {
       if (candidate.id == event.messageId) message = candidate;
     }
-    final isSame = message?.reactions[uid] == event.reaction;
+    // Old reactions were stored as words like "love"; compare as emoji.
+    final current = message?.reactions[uid];
+    final isSame = current != null &&
+        Reactions.emojiOf(current) == Reactions.emojiOf(event.reaction);
 
     try {
       await _firestore

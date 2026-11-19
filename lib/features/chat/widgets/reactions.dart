@@ -2,95 +2,136 @@ import 'package:flutter/material.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
-/// A reaction a user can leave on a message. Stored in Firestore by [id].
-class Reaction {
-  const Reaction(this.id, this.label, this.icon, this.color);
+/// Emoji reactions. A reaction is stored in Firestore as the emoji itself.
+abstract final class Reactions {
+  /// Shown in the message menu, in this order.
+  static const quick = ['❤️', '👍', '😂', '😮', '😢', '🔥'];
 
-  final String id;
-  final String label;
-  final IconData icon;
-  final Color color;
+  /// The reaction a double tap leaves.
+  static const like = '❤️';
 
-  /// Shown in this order in the picker and under messages.
-  static const all = [
-    Reaction('love', 'Love', Icons.favorite_rounded, Color(0xFFE5484D)),
-    Reaction('like', 'Like', Icons.thumb_up_alt_rounded, Color(0xFF3B82F6)),
-    Reaction(
-      'laugh',
-      'Haha',
-      Icons.sentiment_very_satisfied_rounded,
-      Color(0xFFF59E0B),
-    ),
-    Reaction(
-      'sad',
-      'Sad',
-      Icons.sentiment_dissatisfied_rounded,
-      Color(0xFF6B7FD7),
-    ),
-    Reaction(
-      'fire',
-      'Fire',
-      Icons.local_fire_department_rounded,
-      Color(0xFFF97316),
-    ),
-    Reaction(
-        'dislike', 'Dislike', Icons.thumb_down_alt_rounded, Color(0xFF8A8A8A)),
-  ];
+  /// Reactions saved before they were emoji, by their old id.
+  static const _legacy = {
+    'love': '❤️',
+    'like': '👍',
+    'laugh': '😂',
+    'sad': '😢',
+    'fire': '🔥',
+    'dislike': '👎',
+  };
 
-  /// The quick reaction used for a double tap.
-  static const quick = 'love';
+  /// The emoji to show for a stored reaction.
+  static String emojiOf(String reaction) => _legacy[reaction] ?? reaction;
+
+  static const _all =
+      '😀😃😄😁😆😅🤣😂🙂🙃🫠😉😊😇🥰😍🤩😘😗☺️😚😙🥲😋😛😜🤪😝🤑🤗🤭🫢🫣🤫🤔🫡🤐'
+      '🤨😐😑😶🫥😶‍🌫️😏😒🙄😬😮‍💨🤥🫨🙂‍↔️🙂‍↕️😌😔😪🤤😴🫩😷🤒🤕🤢🤮🤧🥵🥶🥴😵😵‍💫🤯'
+      '🤠🥳🥸😎🤓🧐😕🫤😟🙁☹️😮😯😲😳🫪🥺🥹😦😧😨😰😥😢😭😱😖😣😞😓😩😫🥱😤😡😠🤬😈'
+      '👿💀☠️💩🤡👹👺👻👽👾🤖😺😸😹😻😼😽🙀😿😾🙈🙉🙊💋💯💢🫯💥💫💦💨🕳️💤👋🤚🖐️✋🖖'
+      '🫱🫲🫳🫴🫷🫸👌🤌🤏✌️🤞🫰🤟🤘🤙👈👉👆🖕👇☝️🫵👍👎✊👊🤛🤜👏🙌🫶👐🤲🤝🙏✍️💅🤳💪'
+      '🦾🦿🦵🦶👂🦻👃🧠🫀🫁🦷🦴👀👁️👅👄🫦💌💘💝💖💗💓💞💕💟❣️💔❤️‍🔥❤️‍🩹❤️🩷🧡💛💚'
+      '💙🩵💜🤎🖤🩶🤍';
+
+  /// Every emoji offered by the "+" picker.
+  static final List<String> all = _all.characters.toList(growable: false);
 }
 
-/// Lets the user pick a reaction. Resolves to the chosen reaction id, or
-/// null when dismissed. Picking [current] again removes it.
-Future<String?> showReactionPicker(BuildContext context, {String? current}) {
+/// Text style for emoji. No font family, so the platform emoji font draws
+/// them rather than the app's text font.
+const _emojiStyle = TextStyle(fontFamily: null, height: 1.15);
+
+/// Opens the full emoji list. Resolves to the picked emoji, or null.
+Future<String?> showEmojiPicker(BuildContext context) {
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    backgroundColor: context.colorTheme.backgroundSecondary,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
     builder: (context) {
       final colors = context.colorTheme;
 
-      return SafeArea(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          decoration: BoxDecoration(
-            color: colors.backgroundSecondary,
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 16,
-                offset: Offset(0, 4),
+      return SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.55,
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.border,
+                borderRadius: BorderRadius.circular(2),
               ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (final reaction in Reaction.all)
-                Material(
-                  color: reaction.id == current
-                      ? reaction.color.withAlpha(36)
-                      : Colors.transparent,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: IconButton(
-                    tooltip: reaction.label,
-                    iconSize: 30,
-                    icon: Icon(reaction.icon, color: reaction.color),
-                    onPressed: () => Navigator.of(context).pop(reaction.id),
+            ),
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 48,
                   ),
+                  itemCount: Reactions.all.length,
+                  itemBuilder: (context, index) {
+                    final emoji = Reactions.all[index];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.of(context).pop(emoji),
+                      child: Center(
+                        child: Text(
+                          emoji,
+                          style: _emojiStyle.copyWith(fontSize: 28),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       );
     },
   );
 }
 
-/// Reactions left on a message, one chip per reaction with its count.
+/// One emoji in the quick row of the message menu.
+class QuickReactionButton extends StatelessWidget {
+  const QuickReactionButton({
+    super.key,
+    required this.emoji,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? context.colorTheme.secondary.withAlpha(50)
+          : Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: 36,
+          child: Center(
+            child: Text(emoji, style: _emojiStyle.copyWith(fontSize: 22)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Reactions left on a message, one chip per emoji with its count.
 class ReactionChips extends StatelessWidget {
   const ReactionChips({
     super.key,
@@ -99,69 +140,65 @@ class ReactionChips extends StatelessWidget {
     required this.onTap,
   });
 
-  /// Reaction id by user id.
+  /// Reaction by user id.
   final Map<String, String> reactions;
   final String? myId;
 
-  /// Called with the reaction id of the tapped chip.
+  /// Called with the emoji of the tapped chip.
   final ValueChanged<String> onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final mine = reactions[myId];
+    final mine =
+        reactions[myId] == null ? null : Reactions.emojiOf(reactions[myId]!);
 
+    // Counted in the order they were first left; most popular first.
     final counts = <String, int>{};
-    for (final id in reactions.values) {
-      counts[id] = (counts[id] ?? 0) + 1;
+    for (final reaction in reactions.values) {
+      final emoji = Reactions.emojiOf(reaction);
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
     }
+    final emojis = counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
 
     return Wrap(
       spacing: 6,
       runSpacing: 4,
       children: [
-        for (final reaction in Reaction.all)
-          if (counts[reaction.id] case final count?)
-            Material(
-              color: reaction.id == mine
-                  ? reaction.color.withAlpha(34)
-                  : colors.backgroundSecondary,
-              shape: StadiumBorder(
-                side: BorderSide(
-                  color: reaction.id == mine
-                      ? reaction.color.withAlpha(140)
-                      : colors.border,
-                ),
+        for (final emoji in emojis)
+          Material(
+            color: emoji == mine
+                ? colors.secondary.withAlpha(45)
+                : colors.backgroundSecondary,
+            shape: StadiumBorder(
+              side: BorderSide(
+                color: emoji == mine ? colors.secondary : colors.border,
               ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () => onTap(reaction.id),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 4,
-                    children: [
-                      Icon(
-                        reaction.icon,
-                        size: 16,
-                        color: reaction.color,
-                        semanticLabel: reaction.label,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () => onTap(emoji),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 4,
+                  children: [
+                    Text(emoji, style: _emojiStyle.copyWith(fontSize: 15)),
+                    Text(
+                      '${counts[emoji]}',
+                      style: context.textTheme.bodySmall.copyWith(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
                       ),
-                      Text(
-                        '$count',
-                        style: context.textTheme.bodySmall.copyWith(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
+          ),
       ],
     );
   }
