@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
+import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -15,6 +17,8 @@ class MessageBubble extends StatelessWidget {
     required this.isMe,
     required this.startsGroup,
     this.isSeen = false,
+    this.myId,
+    this.onReact,
   });
 
   static const _myBubbleColor = Color(0xFF9CC4F0);
@@ -31,6 +35,28 @@ class MessageBubble extends StatelessWidget {
   /// Whether another participant has read this message. Only shown on the
   /// user's own messages.
   final bool isSeen;
+
+  /// Current user's id, to highlight the reaction they left.
+  final String? myId;
+
+  /// Called with a reaction id when the user picks or taps a reaction.
+  /// Null while the message cannot be reacted to yet.
+  final ValueChanged<String>? onReact;
+
+  /// Double tap only ever adds a like, like in most messengers; removing it
+  /// is done from the reaction chip or the picker.
+  void _like() {
+    if (message.reactions[myId] == Reaction.quick) return;
+    onReact?.call(Reaction.quick);
+  }
+
+  Future<void> _pickReaction(BuildContext context) async {
+    final picked = await showReactionPicker(
+      context,
+      current: message.reactions[myId],
+    );
+    if (picked != null) onReact?.call(picked);
+  }
 
   String _time(BuildContext context) {
     final time = message.createdAt;
@@ -197,58 +223,170 @@ class MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (message.isImage)
-                _buildImage(context, bubbleRadius)
-              else if (message.isVoice)
-                _VoiceBubble(
-                  message: message,
-                  color: isMe ? _myBubbleColor : colors.backgroundSecondary,
-                  radius: bubbleRadius,
-                  accentColor:
-                      isMe ? const Color(0xFF1D5FA8) : colors.secondary,
-                  meta: _buildMeta(
-                    context,
-                    color: metaColor,
-                    seenColor: const Color(0xFF1D5FA8),
-                  ),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
-                  decoration: BoxDecoration(
-                    color: isMe ? _myBubbleColor : colors.backgroundSecondary,
-                    borderRadius: bubbleRadius,
-                    boxShadow: _shadow,
-                  ),
-                  // The time sits on the last line when it fits next to the
-                  // text and drops to its own line otherwise.
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    crossAxisAlignment: WrapCrossAlignment.end,
-                    spacing: 10,
-                    runSpacing: 2,
-                    children: [
-                      Text(
-                        message.text,
-                        style: text.bodyLarge.copyWith(
-                          height: 1.4,
-                          color: const Color(0xFF1B2030),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 2),
-                        child: _buildMeta(
-                          context,
-                          color: metaColor,
-                          seenColor: const Color(0xFF1D5FA8),
-                        ),
-                      ),
-                    ],
+              _DoubleTapLike(
+                onLongPress:
+                    onReact == null ? null : () => _pickReaction(context),
+                onDoubleTap: onReact == null ? null : _like,
+                child: message.isImage
+                    ? _buildImage(context, bubbleRadius)
+                    : message.isVoice
+                        ? _VoiceBubble(
+                            message: message,
+                            color: isMe
+                                ? _myBubbleColor
+                                : colors.backgroundSecondary,
+                            radius: bubbleRadius,
+                            accentColor: isMe
+                                ? const Color(0xFF1D5FA8)
+                                : colors.secondary,
+                            meta: _buildMeta(
+                              context,
+                              color: metaColor,
+                              seenColor: const Color(0xFF1D5FA8),
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
+                            decoration: BoxDecoration(
+                              color: isMe
+                                  ? _myBubbleColor
+                                  : colors.backgroundSecondary,
+                              borderRadius: bubbleRadius,
+                              boxShadow: _shadow,
+                            ),
+                            // The time sits on the last line when it fits next to the
+                            // text and drops to its own line otherwise.
+                            child: Wrap(
+                              alignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.end,
+                              spacing: 10,
+                              runSpacing: 2,
+                              children: [
+                                Text(
+                                  message.text,
+                                  style: text.bodyLarge.copyWith(
+                                    height: 1.4,
+                                    color: const Color(0xFF1B2030),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
+                                  child: _buildMeta(
+                                    context,
+                                    color: metaColor,
+                                    seenColor: const Color(0xFF1D5FA8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+              ),
+              if (message.reactions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+                  child: ReactionChips(
+                    reactions: message.reactions,
+                    myId: myId,
+                    onTap: (reaction) => onReact?.call(reaction),
                   ),
                 ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Detects double tap and long press on a bubble and shows a heart that
+/// pops over it on double tap.
+class _DoubleTapLike extends StatefulWidget {
+  const _DoubleTapLike({
+    required this.child,
+    required this.onDoubleTap,
+    required this.onLongPress,
+  });
+
+  final Widget child;
+  final VoidCallback? onDoubleTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  State<_DoubleTapLike> createState() => _DoubleTapLikeState();
+}
+
+class _DoubleTapLikeState extends State<_DoubleTapLike>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _heart = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  );
+
+  // Grows past full size, settles, then fades out.
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(begin: 0.2, end: 1.2)
+          .chain(CurveTween(curve: Curves.easeOutBack)),
+      weight: 35,
+    ),
+    TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 15),
+    TweenSequenceItem(tween: ConstantTween(1.0), weight: 50),
+  ]).animate(_heart);
+
+  late final Animation<double> _opacity = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+    TweenSequenceItem(tween: ConstantTween(1.0), weight: 55),
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
+  ]).animate(_heart);
+
+  @override
+  void dispose() {
+    _heart.dispose();
+    super.dispose();
+  }
+
+  void _onDoubleTap() {
+    HapticFeedback.lightImpact();
+    _heart.forward(from: 0);
+    widget.onDoubleTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onLongPress: widget.onLongPress,
+      onDoubleTap: widget.onDoubleTap == null ? null : _onDoubleTap,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          widget.child,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _heart,
+                builder: (context, _) {
+                  if (_heart.isDismissed) return const SizedBox.shrink();
+                  return Center(
+                    child: Opacity(
+                      opacity: _opacity.value,
+                      child: Transform.scale(
+                        scale: _scale.value,
+                        child: const Icon(
+                          Icons.favorite_rounded,
+                          size: 44,
+                          color: Color(0xFFE5484D),
+                          shadows: [
+                            Shadow(color: Color(0x40000000), blurRadius: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

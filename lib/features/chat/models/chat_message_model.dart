@@ -17,6 +17,9 @@ class ChatMessage {
   final String? audioUrl;
   final int? audioDurationMs;
 
+  /// Reaction id by the id of the user who left it; one per user.
+  final Map<String, String> reactions;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -28,6 +31,7 @@ class ChatMessage {
     this.imageHeight,
     this.audioUrl,
     this.audioDurationMs,
+    this.reactions = const {},
   });
 
   bool get isVoice => audioUrl != null && audioUrl!.isNotEmpty;

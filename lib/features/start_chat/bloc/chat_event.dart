@@ -72,6 +72,22 @@ class SendVoiceEvent extends ChatEvent {
   List<Object> get props => [chatCode, filePath, duration];
 }
 
+/// Leaves, changes or removes the user's reaction on a message.
+class ToggleReactionEvent extends ChatEvent {
+  final String chatCode;
+  final String messageId;
+  final String reaction;
+
+  const ToggleReactionEvent({
+    required this.chatCode,
+    required this.messageId,
+    required this.reaction,
+  });
+
+  @override
+  List<Object> get props => [chatCode, messageId, reaction];
+}
+
 class MessagesSubscribeEvent extends ChatEvent {
   final String chatCode;
 

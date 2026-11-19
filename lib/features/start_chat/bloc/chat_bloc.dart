@@ -25,6 +25,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<SendMessageEvent>(_onSendMessage);
     on<SendImageEvent>(_onSendImage);
     on<SendVoiceEvent>(_onSendVoice);
+    on<ToggleReactionEvent>(_onToggleReaction);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
     on<SetUserNameEvent>(_onSetUserName);
     on<GetChatsEvent>(_onGetChats);
@@ -420,6 +421,37 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
   }
 
+  /// Sets the user's reaction on a message; choosing the reaction they
+  /// already left removes it.
+  Future<void> _onToggleReaction(
+    ToggleReactionEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    ChatMessage? message;
+    for (final candidate in _messages) {
+      if (candidate.id == event.messageId) message = candidate;
+    }
+    final isSame = message?.reactions[uid] == event.reaction;
+
+    try {
+      await _firestore
+          .collection('chats')
+          .doc(event.chatCode)
+          .collection('messages')
+          .doc(event.messageId)
+          .update({
+        'reactions.$uid': isSame ? FieldValue.delete() : event.reaction,
+      });
+    } catch (e) {
+      debugPrint('Reacting failed: $e');
+      emit(ChatError('Could not add the reaction'));
+      if (_openChatCode != null) _emitMessages(emit);
+    }
+  }
+
   /// Pictures and voice messages currently being uploaded from this device.
   int _uploadingImages = 0;
 
@@ -650,6 +682,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           imageHeight: (data['imageHeight'] as num?)?.toInt(),
           audioUrl: data['audioUrl'] as String?,
           audioDurationMs: (data['audioDurationMs'] as num?)?.toInt(),
+          reactions: {
+            if (data['reactions'] case final Map reactions)
+              for (final entry in reactions.entries)
+                if (entry.value is String)
+                  entry.key as String: entry.value as String,
+          },
         );
       }).toList();
 

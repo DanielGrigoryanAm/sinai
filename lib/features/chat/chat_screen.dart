@@ -195,6 +195,19 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                                     !state.seenAt!.isBefore(message.createdAt!),
                                 startsGroup: isNewDay ||
                                     previous?.senderId != message.senderId,
+                                myId: myId,
+                                // A message still being sent has no
+                                // server copy to react to yet.
+                                onReact: message.createdAt == null
+                                    ? null
+                                    : (reaction) =>
+                                        context.read<ChatBloc>().add(
+                                              ToggleReactionEvent(
+                                                chatCode: widget.chatCode,
+                                                messageId: message.id,
+                                                reaction: reaction,
+                                              ),
+                                            ),
                               ),
                             ],
                           );
