@@ -29,9 +29,13 @@ class SendMessageEvent extends ChatEvent {
   final String chatCode;
   final String text;
 
+  /// Message being replied to, if any.
+  final ReplyPreview? replyTo;
+
   const SendMessageEvent({
     required this.chatCode,
     required this.text,
+    this.replyTo,
   });
 
   @override
@@ -43,11 +47,13 @@ class SendImageEvent extends ChatEvent {
   final String chatCode;
   final Uint8List bytes;
   final String contentType;
+  final ReplyPreview? replyTo;
 
   const SendImageEvent({
     required this.chatCode,
     required this.bytes,
     this.contentType = 'image/jpeg',
+    this.replyTo,
   });
 
   @override
@@ -61,15 +67,44 @@ class SendVoiceEvent extends ChatEvent {
   /// Local path of the recording; deleted once it has been sent.
   final String filePath;
   final Duration duration;
+  final ReplyPreview? replyTo;
 
   const SendVoiceEvent({
     required this.chatCode,
     required this.filePath,
     required this.duration,
+    this.replyTo,
   });
 
   @override
   List<Object> get props => [chatCode, filePath, duration];
+}
+
+/// Replaces the text of the user's own message.
+class EditMessageEvent extends ChatEvent {
+  final String chatCode;
+  final String messageId;
+  final String text;
+
+  const EditMessageEvent({
+    required this.chatCode,
+    required this.messageId,
+    required this.text,
+  });
+
+  @override
+  List<Object> get props => [chatCode, messageId, text];
+}
+
+/// Deletes the user's own message for everyone.
+class DeleteMessageEvent extends ChatEvent {
+  final String chatCode;
+  final String messageId;
+
+  const DeleteMessageEvent({required this.chatCode, required this.messageId});
+
+  @override
+  List<Object> get props => [chatCode, messageId];
 }
 
 /// Leaves, changes or removes the user's reaction on a message.

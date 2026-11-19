@@ -129,3 +129,37 @@ exports.cleanUpDeletedChat = onDocumentDeleted(
       logger.info('Deleted chat cleaned up', {chatId});
     },
 );
+
+/**
+ * Turns a Firebase Storage download URL into the object's path in the
+ * bucket, e.g. `chats/ABC123/images/1700000000000_uid.jpg`.
+ */
+function storagePathFromUrl(url) {
+  if (typeof url !== 'string') return null;
+  const match = /\/o\/([^?]+)/.exec(url);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Removes the photo or voice file of a message that was deleted, so files
+ * of deleted messages do not pile up in Cloud Storage.
+ */
+exports.cleanUpDeletedMessage = onDocumentDeleted(
+    'chats/{chatId}/messages/{messageId}',
+    async (event) => {
+      const message = event.data?.data();
+      if (!message) return;
+
+      const {chatId} = event.params;
+      const paths = [message.imageUrl, message.audioUrl]
+          .map(storagePathFromUrl)
+          // Only ever touch this chat's own files.
+          .filter((path) => path && path.startsWith(`chats/${chatId}/`));
+
+      // When the whole chat is deleted its files are already gone, hence
+      // ignoreNotFound.
+      await Promise.all(paths.map((path) =>
+        getStorage().bucket().file(path).delete({ignoreNotFound: true}),
+      ));
+    },
+);

@@ -26,6 +26,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<SendImageEvent>(_onSendImage);
     on<SendVoiceEvent>(_onSendVoice);
     on<ToggleReactionEvent>(_onToggleReaction);
+    on<EditMessageEvent>(_onEditMessage);
+    on<DeleteMessageEvent>(_onDeleteMessage);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
     on<SetUserNameEvent>(_onSetUserName);
     on<GetChatsEvent>(_onGetChats);
@@ -360,20 +362,9 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       final ownerId = data['ownerId'] as String?;
 
       if (ownerId == user.uid) {
-        final messagesRef =
-            _firestore.collection('chats').doc(code).collection('messages');
-
-        while (true) {
-          final batchSnapshot = await messagesRef.limit(200).get();
-          if (batchSnapshot.docs.isEmpty) break;
-
-          final batch = _firestore.batch();
-          for (final doc in batchSnapshot.docs) {
-            batch.delete(doc.reference);
-          }
-          await batch.commit();
-        }
-
+        // Messages and their files are removed by the cleanUpDeletedChat
+        // Cloud Function. Users may delete only their own messages, so the
+        // owner cannot clear other people's messages from here.
         await chatRef.delete();
       } else {
         await chatRef.update({
@@ -413,10 +404,52 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         'senderId': user.uid,
         'senderName': senderName,
         'createdAt': FieldValue.serverTimestamp(),
+        if (event.replyTo != null) 'replyTo': event.replyTo!.toMap(),
       });
     } catch (e) {
       emit(ChatError(e.toString()));
       // Put the messages back; the error state replaced them on screen.
+      if (_openChatCode != null) _emitMessages(emit);
+    }
+  }
+
+  Future<void> _onEditMessage(
+    EditMessageEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      await _firestore
+          .collection('chats')
+          .doc(event.chatCode)
+          .collection('messages')
+          .doc(event.messageId)
+          .update({
+        'text': event.text,
+        'editedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Editing the message failed: $e');
+      emit(ChatError('Could not edit the message'));
+      if (_openChatCode != null) _emitMessages(emit);
+    }
+  }
+
+  /// Its photo or voice file is removed from Storage by the
+  /// cleanUpDeletedMessage Cloud Function.
+  Future<void> _onDeleteMessage(
+    DeleteMessageEvent event,
+    Emitter<ChatState> emit,
+  ) async {
+    try {
+      await _firestore
+          .collection('chats')
+          .doc(event.chatCode)
+          .collection('messages')
+          .doc(event.messageId)
+          .delete();
+    } catch (e) {
+      debugPrint('Deleting the message failed: $e');
+      emit(ChatError('Could not delete the message'));
       if (_openChatCode != null) _emitMessages(emit);
     }
   }
@@ -504,6 +537,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         'senderId': user.uid,
         'senderName': senderName,
         'createdAt': FieldValue.serverTimestamp(),
+        if (event.replyTo != null) 'replyTo': event.replyTo!.toMap(),
       });
 
       _uploadingImages--;
@@ -555,6 +589,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
         'senderId': user.uid,
         'senderName': senderName,
         'createdAt': FieldValue.serverTimestamp(),
+        if (event.replyTo != null) 'replyTo': event.replyTo!.toMap(),
       });
 
       _uploadingImages--;
@@ -688,6 +723,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
                 if (entry.value is String)
                   entry.key as String: entry.value as String,
           },
+          replyTo: ReplyPreview.fromMap(data['replyTo']),
+          isEdited: data.containsKey('editedAt'),
         );
       }).toList();
 

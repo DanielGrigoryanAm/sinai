@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/custom_app_bar.dart';
+import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chat/widgets/composer_controller.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
 import 'package:sinai/features/chat/widgets/message_bubble.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
@@ -51,6 +56,142 @@ class ChatScreenView extends StatefulWidget {
 class _ChatScreenViewState extends State<ChatScreenView> {
   final TextEditingController chatController = TextEditingController();
   final ScrollController _messagesScrollController = ScrollController();
+  final ComposerController _composer = ComposerController();
+  final FocusNode _fieldFocus = FocusNode();
+
+  final Map<String, GlobalKey> _messageKeys = {};
+
+  /// Message briefly highlighted after jumping to it from a reply.
+  String? _highlightedId;
+  Timer? _highlightTimer;
+
+  GlobalKey _keyFor(String messageId) =>
+      _messageKeys.putIfAbsent(messageId, GlobalKey.new);
+
+  void _showSnack(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// Scrolls to [messageId], loading older pages if it is not loaded yet,
+  /// and highlights it for a moment.
+  Future<void> _scrollToMessage(String messageId) async {
+    final bloc = context.read<ChatBloc>();
+
+    // 1. Make sure the message is among the loaded ones.
+    var state = bloc.state;
+    while (state is MessagesLoaded &&
+        !state.messages.any((m) => m.id == messageId)) {
+      if (!state.hasMore) {
+        _showSnack('The original message was deleted');
+        return;
+      }
+      final loadedCount = state.messages.length;
+      bloc.add(const LoadMoreMessagesEvent());
+      try {
+        state = await bloc.stream
+            .firstWhere(
+              (s) =>
+                  s is MessagesLoaded &&
+                  !s.isLoadingMore &&
+                  s.messages.length > loadedCount,
+            )
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {
+        if (mounted) _showSnack('Could not load the original message');
+        return;
+      }
+      if (!mounted) return;
+    }
+    if (state is! MessagesLoaded) return;
+    final messages = state.messages;
+    final targetIndex = messages.indexWhere((m) => m.id == messageId);
+
+    // 2. The list builds only what is near the screen, so step towards the
+    // message until it has been built, then bring it into view.
+    for (var attempt = 0; attempt < 60; attempt++) {
+      if (!mounted || !_messagesScrollController.hasClients) return;
+
+      final target = _messageKeys[messageId]?.currentContext;
+      if (target != null && target.mounted) {
+        await Scrollable.ensureVisible(
+          target,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutCubic,
+        );
+        _highlight(messageId);
+        return;
+      }
+
+      // Any message currently built tells which way to go. The list is
+      // reversed: older messages lie at larger scroll offsets.
+      int? builtIndex;
+      for (var i = 0; i < messages.length; i++) {
+        if (_messageKeys[messages[i].id]?.currentContext != null) {
+          builtIndex = i;
+          break;
+        }
+      }
+      final goOlder = builtIndex == null || targetIndex < builtIndex;
+
+      final position = _messagesScrollController.position;
+      final step = position.viewportDimension * 0.9;
+      final next = (position.pixels + (goOlder ? step : -step))
+          .clamp(position.minScrollExtent, position.maxScrollExtent);
+      if (next == position.pixels) break;
+      _messagesScrollController.jumpTo(next);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    if (mounted) _showSnack('Could not find the original message');
+  }
+
+  void _highlight(String messageId) {
+    _highlightTimer?.cancel();
+    setState(() => _highlightedId = messageId);
+    _highlightTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _highlightedId = null);
+    });
+  }
+
+  void _reply(ChatMessage message) {
+    _composer.reply(message);
+    _fieldFocus.requestFocus();
+  }
+
+  void _edit(ChatMessage message) {
+    _composer.edit(message);
+    chatController.value = TextEditingValue(
+      text: message.text,
+      selection: TextSelection.collapsed(offset: message.text.length),
+    );
+    _fieldFocus.requestFocus();
+  }
+
+  Future<void> _delete(ChatMessage message) async {
+    final bloc = context.read<ChatBloc>();
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Delete message?',
+      message: 'It will be deleted for everyone in this chat.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed) return;
+
+    // Don't leave a reply or edit pointing at a message that is gone.
+    if (_composer.replyTo?.id == message.id) _composer.clear();
+    if (_composer.editing?.id == message.id) {
+      _composer.clear();
+      chatController.clear();
+    }
+
+    bloc.add(
+      DeleteMessageEvent(chatCode: widget.chatCode, messageId: message.id),
+    );
+  }
 
   void _handleExitToChats() {
     context.router.replaceAll([const ChatsRoute()]);
@@ -90,6 +231,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   void dispose() {
     VoicePlayer.instance.stop();
     chatController.dispose();
+    _composer.dispose();
+    _highlightTimer?.cancel();
+    _fieldFocus.dispose();
     _messagesScrollController.dispose();
     super.dispose();
   }
@@ -181,35 +325,66 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                           final isNewDay = previousDate == null ||
                               !DateUtils.isSameDay(previousDate, date);
 
-                          return Column(
-                            key: ValueKey(message.id),
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (isNewDay) MessageDatePill(date: date),
-                              MessageBubble(
-                                message: message,
-                                isMe: isMe,
-                                isSeen: isMe &&
-                                    message.createdAt != null &&
-                                    state.seenAt != null &&
-                                    !state.seenAt!.isBefore(message.createdAt!),
-                                startsGroup: isNewDay ||
-                                    previous?.senderId != message.senderId,
-                                myId: myId,
-                                // A message still being sent has no
-                                // server copy to react to yet.
-                                onReact: message.createdAt == null
-                                    ? null
-                                    : (reaction) =>
-                                        context.read<ChatBloc>().add(
-                                              ToggleReactionEvent(
-                                                chatCode: widget.chatCode,
-                                                messageId: message.id,
-                                                reaction: reaction,
+                          return AnimatedContainer(
+                            // A GlobalKey lets a reply quote find and scroll
+                            // to this message.
+                            key: _keyFor(message.id),
+                            duration: const Duration(milliseconds: 300),
+                            decoration: BoxDecoration(
+                              color: _highlightedId == message.id
+                                  ? context.colorTheme.secondary.withAlpha(45)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (isNewDay) MessageDatePill(date: date),
+                                MessageBubble(
+                                  message: message,
+                                  isMe: isMe,
+                                  isSeen: isMe &&
+                                      message.createdAt != null &&
+                                      state.seenAt != null &&
+                                      !state.seenAt!
+                                          .isBefore(message.createdAt!),
+                                  startsGroup: isNewDay ||
+                                      previous?.senderId != message.senderId,
+                                  myId: myId,
+                                  // A message still being sent has no
+                                  // server copy to react to yet.
+                                  onReact: message.createdAt == null
+                                      ? null
+                                      : (reaction) =>
+                                          context.read<ChatBloc>().add(
+                                                ToggleReactionEvent(
+                                                  chatCode: widget.chatCode,
+                                                  messageId: message.id,
+                                                  reaction: reaction,
+                                                ),
                                               ),
-                                            ),
-                              ),
-                            ],
+                                  onReply: message.createdAt == null
+                                      ? null
+                                      : () => _reply(message),
+                                  // Only text can be edited; photos and voice
+                                  // messages are deleted and sent again.
+                                  onEdit: isMe &&
+                                          message.createdAt != null &&
+                                          !message.isImage &&
+                                          !message.isVoice
+                                      ? () => _edit(message)
+                                      : null,
+                                  onDelete: isMe && message.createdAt != null
+                                      ? () => _delete(message)
+                                      : null,
+                                  onReplyTap: message.replyTo == null
+                                      ? null
+                                      : () => _scrollToMessage(
+                                            message.replyTo!.messageId,
+                                          ),
+                                ),
+                              ],
+                            ),
                           );
                         },
                       );
@@ -258,6 +433,8 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                   child: MessageField(
                     chatController: chatController,
                     chatCode: widget.chatCode,
+                    composer: _composer,
+                    focusNode: _fieldFocus,
                     onMessageSent: () {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         _scrollToBottom();

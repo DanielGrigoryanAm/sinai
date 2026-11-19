@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chat/widgets/composer_controller.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/gen/assets.gen.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
@@ -16,11 +18,17 @@ class MessageField extends StatefulWidget {
     super.key,
     required this.chatController,
     required this.chatCode,
+    required this.composer,
+    this.focusNode,
     this.onMessageSent,
   });
 
   final TextEditingController chatController;
   final String chatCode;
+
+  /// Reply or edit in progress, set from the message menu.
+  final ComposerController composer;
+  final FocusNode? focusNode;
   final VoidCallback? onMessageSent;
 
   @override
@@ -42,11 +50,13 @@ class _MessageFieldState extends State<MessageField> {
     super.initState();
     // The mic turns into the send button as soon as there is text.
     widget.chatController.addListener(_onTextChanged);
+    widget.composer.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
     widget.chatController.removeListener(_onTextChanged);
+    widget.composer.removeListener(_onTextChanged);
     _recordingTicker?.cancel();
     if (_isRecording) _recorder.cancel();
     _recorder.dispose();
@@ -133,6 +143,7 @@ class _MessageFieldState extends State<MessageField> {
           chatCode: widget.chatCode,
           filePath: path,
           duration: duration,
+          replyTo: _takeReply(),
         ),
       );
       widget.onMessageSent?.call();
@@ -144,13 +155,41 @@ class _MessageFieldState extends State<MessageField> {
     }
   }
 
-  /// Sends the attached photo, if any, followed by the typed text.
+  /// The reply being composed, as stored on the sent message. Clears it,
+  /// since a reply goes with the next message only.
+  ReplyPreview? _takeReply() {
+    final replyTo = widget.composer.replyTo;
+    widget.composer.clear();
+    return replyTo == null ? null : ReplyPreview.of(replyTo);
+  }
+
+  /// Saves an edit, or sends the attached photo, if any, followed by the
+  /// typed text.
   void _send() {
     final text = widget.chatController.text.trim();
+    final bloc = context.read<ChatBloc>();
+
+    final editing = widget.composer.editing;
+    if (editing != null) {
+      if (text.isEmpty) return;
+      if (text != editing.text) {
+        bloc.add(
+          EditMessageEvent(
+            chatCode: widget.chatCode,
+            messageId: editing.id,
+            text: text,
+          ),
+        );
+      }
+      widget.chatController.clear();
+      widget.composer.clear();
+      return;
+    }
+
     final image = _pendingImage;
     if (text.isEmpty && image == null) return;
 
-    final bloc = context.read<ChatBloc>();
+    final reply = _takeReply();
 
     if (image != null) {
       bloc.add(
@@ -158,17 +197,30 @@ class _MessageFieldState extends State<MessageField> {
           chatCode: widget.chatCode,
           bytes: image,
           contentType: _pendingImageType,
+          // With text, the reply goes on the text message instead.
+          replyTo: text.isEmpty ? reply : null,
         ),
       );
       setState(() => _pendingImage = null);
     }
 
     if (text.isNotEmpty) {
-      bloc.add(SendMessageEvent(chatCode: widget.chatCode, text: text));
+      bloc.add(
+        SendMessageEvent(
+          chatCode: widget.chatCode,
+          text: text,
+          replyTo: reply,
+        ),
+      );
       widget.chatController.clear();
     }
 
     widget.onMessageSent?.call();
+  }
+
+  void _cancelEdit() {
+    widget.composer.clear();
+    widget.chatController.clear();
   }
 
   /// Lets the user pick a photo from the gallery or take one. The photo is
@@ -231,14 +283,31 @@ class _MessageFieldState extends State<MessageField> {
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
     final pendingImage = _pendingImage;
-    final canSend =
-        pendingImage != null || widget.chatController.text.trim().isNotEmpty;
+    final replyTo = widget.composer.replyTo;
+    final editing = widget.composer.editing;
+    final canSend = editing != null ||
+        pendingImage != null ||
+        widget.chatController.text.trim().isNotEmpty;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (pendingImage != null)
+        if (replyTo != null)
+          _ComposerBar(
+            icon: Icons.reply_rounded,
+            title: 'Reply to ${replyTo.senderName}',
+            text: replyTo.previewText,
+            onClose: widget.composer.clear,
+          ),
+        if (editing != null)
+          _ComposerBar(
+            icon: Icons.edit_outlined,
+            title: 'Edit message',
+            text: editing.text,
+            onClose: _cancelEdit,
+          ),
+        if (pendingImage != null && editing == null)
           Padding(
             padding: const EdgeInsets.only(left: 8, bottom: 10),
             child: _PendingImagePreview(
@@ -267,6 +336,7 @@ class _MessageFieldState extends State<MessageField> {
               : TextField(
                   cursorColor: colors.secondary,
                   controller: widget.chatController,
+                  focusNode: widget.focusNode,
                   textInputAction: TextInputAction.send,
                   textCapitalization: TextCapitalization.sentences,
                   // Handling the action here instead of onSubmitted keeps the
@@ -283,17 +353,23 @@ class _MessageFieldState extends State<MessageField> {
                     hintStyle: context.textTheme.hintText.copyWith(
                       fontSize: 16,
                     ),
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.only(left: 5),
-                      child: IconButton(
-                        tooltip: 'Attach photo',
-                        icon: Assets.icons.photo.image(
-                          height: 32,
-                          width: 32,
-                        ),
-                        onPressed: _attachImage,
-                      ),
-                    ),
+                    // An edit changes the text only.
+                    prefixIcon: editing != null
+                        ? null
+                        : Padding(
+                            padding: const EdgeInsets.only(left: 5),
+                            child: IconButton(
+                              tooltip: 'Attach photo',
+                              icon: Assets.icons.photo.image(
+                                height: 32,
+                                width: 32,
+                              ),
+                              onPressed: _attachImage,
+                            ),
+                          ),
+                    contentPadding: editing != null
+                        ? const EdgeInsets.fromLTRB(20, 16, 12, 16)
+                        : null,
                     suffixIcon: Padding(
                       padding: const EdgeInsets.only(right: 5),
                       child: canSend
@@ -318,6 +394,83 @@ class _MessageFieldState extends State<MessageField> {
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// Bar above the field showing the message being replied to or edited.
+class _ComposerBar extends StatelessWidget {
+  const _ComposerBar({
+    required this.icon,
+    required this.title,
+    required this.text,
+    required this.onClose,
+  });
+
+  final IconData icon;
+  final String title;
+  final String text;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    final textTheme = context.textTheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: colors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: colors.secondary, size: 22),
+          const SizedBox(width: 10),
+          Container(
+            width: 3,
+            height: 34,
+            decoration: BoxDecoration(
+              color: colors.secondary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: colors.secondary,
+                  ),
+                ),
+                Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cancel',
+            icon: Icon(Icons.close, color: colors.textSecondary, size: 20),
+            onPressed: onClose,
+          ),
+        ],
+      ),
     );
   }
 }

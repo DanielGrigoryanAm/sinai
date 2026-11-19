@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
+import 'package:sinai/features/chat/widgets/message_menu.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
@@ -19,6 +20,10 @@ class MessageBubble extends StatelessWidget {
     this.isSeen = false,
     this.myId,
     this.onReact,
+    this.onReply,
+    this.onEdit,
+    this.onDelete,
+    this.onReplyTap,
   });
 
   static const _myBubbleColor = Color(0xFF9CC4F0);
@@ -50,12 +55,45 @@ class MessageBubble extends StatelessWidget {
     onReact?.call(Reaction.quick);
   }
 
-  Future<void> _pickReaction(BuildContext context) async {
-    final picked = await showReactionPicker(
-      context,
-      current: message.reactions[myId],
+  /// Message actions; each is null when it does not apply to this message.
+  final VoidCallback? onReply;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  /// Tapping the reply quote; scrolls to the message it answers.
+  final VoidCallback? onReplyTap;
+
+  /// Long press: reactions plus reply, copy, edit and delete.
+  Future<void> _openMenu(BuildContext bubbleContext) async {
+    final canCopy = message.text.trim().isNotEmpty;
+    final result = await showMessageMenu(
+      bubbleContext,
+      currentReaction: message.reactions[myId],
+      canReply: onReply != null,
+      canCopy: canCopy,
+      canEdit: onEdit != null,
+      canDelete: onDelete != null,
     );
-    if (picked != null) onReact?.call(picked);
+
+    switch (result) {
+      case MessageMenuReact(:final reaction):
+        onReact?.call(reaction);
+      case MessageMenuActionResult(action: MessageMenuAction.reply):
+        onReply?.call();
+      case MessageMenuActionResult(action: MessageMenuAction.copy):
+        await Clipboard.setData(ClipboardData(text: message.text));
+        if (bubbleContext.mounted) {
+          ScaffoldMessenger.of(bubbleContext)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(content: Text('Copied')));
+        }
+      case MessageMenuActionResult(action: MessageMenuAction.edit):
+        onEdit?.call();
+      case MessageMenuActionResult(action: MessageMenuAction.delete):
+        onDelete?.call();
+      case null:
+        break;
+    }
   }
 
   String _time(BuildContext context) {
@@ -86,6 +124,15 @@ class MessageBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: 3,
       children: [
+        if (message.isEdited)
+          Text(
+            'edited',
+            style: context.textTheme.bodySmall.copyWith(
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+              color: color,
+            ),
+          ),
         Text(
           _time(context),
           style: context.textTheme.bodySmall.copyWith(
@@ -102,6 +149,23 @@ class MessageBubble extends StatelessWidget {
             color: isSeen ? seenColor : color,
             semanticLabel: isSeen ? 'Seen' : 'Sent',
           ),
+      ],
+    );
+  }
+
+  /// Puts the quote of the replied-to message above [content].
+  Widget _withQuote(Widget content) {
+    final reply = message.replyTo;
+    if (reply == null) return content;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: _ReplyQuote(reply: reply, isMe: isMe, onTap: onReplyTap),
+        ),
+        content,
       ],
     );
   }
@@ -223,9 +287,26 @@ class MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (message.replyTo != null &&
+                  (message.isImage || message.isVoice))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                    decoration: BoxDecoration(
+                      color: isMe ? _myBubbleColor : colors.backgroundSecondary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: _ReplyQuote(
+                      reply: message.replyTo!,
+                      isMe: isMe,
+                      onTap: onReplyTap,
+                    ),
+                  ),
+                ),
               _DoubleTapLike(
-                onLongPress:
-                    onReact == null ? null : () => _pickReaction(context),
+                // Messages still being sent have nothing to act on yet.
+                onLongPress: message.createdAt == null ? null : _openMenu,
                 onDoubleTap: onReact == null ? null : _like,
                 child: message.isImage
                     ? _buildImage(context, bubbleRadius)
@@ -256,28 +337,30 @@ class MessageBubble extends StatelessWidget {
                             ),
                             // The time sits on the last line when it fits next to the
                             // text and drops to its own line otherwise.
-                            child: Wrap(
-                              alignment: WrapAlignment.end,
-                              crossAxisAlignment: WrapCrossAlignment.end,
-                              spacing: 10,
-                              runSpacing: 2,
-                              children: [
-                                Text(
-                                  message.text,
-                                  style: text.bodyLarge.copyWith(
-                                    height: 1.4,
-                                    color: const Color(0xFF1B2030),
+                            child: _withQuote(
+                              Wrap(
+                                alignment: WrapAlignment.end,
+                                crossAxisAlignment: WrapCrossAlignment.end,
+                                spacing: 10,
+                                runSpacing: 2,
+                                children: [
+                                  Text(
+                                    message.text,
+                                    style: text.bodyLarge.copyWith(
+                                      height: 1.4,
+                                      color: const Color(0xFF1B2030),
+                                    ),
                                   ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: _buildMeta(
-                                    context,
-                                    color: metaColor,
-                                    seenColor: const Color(0xFF1D5FA8),
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 2),
+                                    child: _buildMeta(
+                                      context,
+                                      color: metaColor,
+                                      seenColor: const Color(0xFF1D5FA8),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
               ),
@@ -298,6 +381,73 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
+/// Quote of the message a reply answers: sender and one line of text.
+class _ReplyQuote extends StatelessWidget {
+  const _ReplyQuote({required this.reply, required this.isMe, this.onTap});
+
+  final ReplyPreview reply;
+  final bool isMe;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent =
+        isMe ? const Color(0xFF1D5FA8) : context.colorTheme.secondary;
+    final text = context.textTheme;
+
+    final quote = IntrinsicHeight(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 3,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  reply.senderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodySmall.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+                Text(
+                  reply.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodySmall.copyWith(
+                    fontSize: 13,
+                    color: const Color(0xFF1B2030).withAlpha(170),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return quote;
+    return GestureDetector(
+      // Opaque so the whole quote, gaps included, takes the tap.
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: quote,
+    );
+  }
+}
+
 /// Detects double tap and long press on a bubble and shows a heart that
 /// pops over it on double tap.
 class _DoubleTapLike extends StatefulWidget {
@@ -309,7 +459,7 @@ class _DoubleTapLike extends StatefulWidget {
 
   final Widget child;
   final VoidCallback? onDoubleTap;
-  final VoidCallback? onLongPress;
+  final void Function(BuildContext bubbleContext)? onLongPress;
 
   @override
   State<_DoubleTapLike> createState() => _DoubleTapLikeState();
@@ -354,7 +504,9 @@ class _DoubleTapLikeState extends State<_DoubleTapLike>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onLongPress: widget.onLongPress,
+      onLongPress: widget.onLongPress == null
+          ? null
+          : () => widget.onLongPress!(context),
       onDoubleTap: widget.onDoubleTap == null ? null : _onDoubleTap,
       child: Stack(
         alignment: Alignment.center,
