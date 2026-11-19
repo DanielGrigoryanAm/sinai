@@ -1,12 +1,14 @@
 const {
   onDocumentCreated,
   onDocumentDeleted,
+  onDocumentUpdated,
 } = require('firebase-functions/v2/firestore');
 const {logger} = require('firebase-functions');
 const {initializeApp} = require('firebase-admin/app');
 const {getFirestore, FieldValue} = require('firebase-admin/firestore');
 const {getMessaging} = require('firebase-admin/messaging');
 const {getStorage} = require('firebase-admin/storage');
+const {getAuth} = require('firebase-admin/auth');
 
 initializeApp();
 
@@ -19,12 +21,82 @@ const DEAD_TOKEN_CODES = new Set([
 
 const MAX_BODY_LENGTH = 200;
 
+/** Cuts long text for a notification body. */
+function shorten(text) {
+  return text.length > MAX_BODY_LENGTH ?
+    `${text.slice(0, MAX_BODY_LENGTH)}…` :
+    text;
+}
+
+/** What a message is, for notifications: its text, or Photo / Voice. */
+function describeMessage(message) {
+  return String(message.text || '') ||
+    (message.imageUrl ? '📷 Photo' : '') ||
+    (message.audioUrl ? '🎤 Voice message' : '');
+}
+
+/**
+ * Sends a push to every device of the given users and removes tokens FCM
+ * reports as dead.
+ *
+ * Device tokens are read from `users/{uid}.fcmTokens`, which the app writes
+ * on start. [tag] groups pushes on Android: a newer one with the same tag
+ * replaces the older one.
+ */
+async function sendToUsers(userIds, {title, body, data, tag}) {
+  if (userIds.length === 0) return;
+  const db = getFirestore();
+
+  const userSnaps = await db.getAll(
+      ...userIds.map((uid) => db.collection('users').doc(uid)),
+  );
+
+  // Remember which user each token belongs to, to clean up dead ones.
+  const tokenOwners = new Map();
+  for (const snap of userSnaps) {
+    for (const token of snap.data()?.fcmTokens || []) {
+      tokenOwners.set(token, snap.id);
+    }
+  }
+  const tokens = [...tokenOwners.keys()];
+  if (tokens.length === 0) return;
+
+  const response = await getMessaging().sendEachForMulticast({
+    tokens,
+    notification: {title, body},
+    data,
+    android: {
+      priority: 'high',
+      notification: {channelId: 'messages', tag},
+    },
+  });
+
+  const cleanups = [];
+  response.responses.forEach((result, index) => {
+    if (result.success) return;
+    const token = tokens[index];
+    if (DEAD_TOKEN_CODES.has(result.error?.code)) {
+      cleanups.push(
+          db.collection('users').doc(tokenOwners.get(token)).update({
+            fcmTokens: FieldValue.arrayRemove(token),
+          }),
+      );
+    } else {
+      logger.warn('Push failed', {tag, code: result.error?.code});
+    }
+  });
+  await Promise.all(cleanups);
+
+  logger.info('Pushes sent', {
+    tag,
+    sent: response.successCount,
+    failed: response.failureCount,
+  });
+}
+
 /**
  * Sends a push notification to every other participant of a chat when a
  * message is added to it.
- *
- * Device tokens are read from `users/{uid}.fcmTokens`, which the app writes
- * on start. Tokens FCM reports as dead are removed from that list.
  */
 exports.notifyNewMessage = onDocumentCreated(
     'chats/{chatId}/messages/{messageId}',
@@ -41,68 +113,19 @@ exports.notifyNewMessage = onDocumentCreated(
 
       const recipientIds = (chat.participantIds || [])
           .filter((uid) => uid !== message.senderId);
-      if (recipientIds.length === 0) return;
-
-      const userSnaps = await db.getAll(
-          ...recipientIds.map((uid) => db.collection('users').doc(uid)),
-      );
-
-      // Remember which user each token belongs to, to clean up dead ones.
-      const tokenOwners = new Map();
-      for (const snap of userSnaps) {
-        for (const token of snap.data()?.fcmTokens || []) {
-          tokenOwners.set(token, snap.id);
-        }
-      }
-      const tokens = [...tokenOwners.keys()];
-      if (tokens.length === 0) return;
 
       const chatName = (chat.name || '').trim();
       const senderName = (message.senderName || '').trim() || 'Someone';
-      // Picture and voice messages have no text of their own.
-      const text = String(message.text || '') ||
-        (message.imageUrl ? '📷 Photo' : '') ||
-        (message.audioUrl ? '🎤 Voice message' : '');
-      const body = text.length > MAX_BODY_LENGTH ?
-        `${text.slice(0, MAX_BODY_LENGTH)}…` :
-        text;
+      const body = shorten(describeMessage(message));
 
-      const response = await getMessaging().sendEachForMulticast({
-        tokens,
-        notification: {
-          // Named chats show "Chat name" / "Sender: text"; unnamed ones
-          // show the sender as the title.
-          title: chatName || senderName,
-          body: chatName ? `${senderName}: ${body}` : body,
-        },
+      await sendToUsers(recipientIds, {
+        // Named chats show "Chat name" / "Sender: text"; unnamed ones
+        // show the sender as the title.
+        title: chatName || senderName,
+        body: chatName ? `${senderName}: ${body}` : body,
         // Read by the app to open the right chat when the push is tapped.
         data: {chatCode: chatId, chatName},
-        android: {
-          priority: 'high',
-          notification: {channelId: 'messages', tag: chatId},
-        },
-      });
-
-      const cleanups = [];
-      response.responses.forEach((result, index) => {
-        if (result.success) return;
-        const token = tokens[index];
-        if (DEAD_TOKEN_CODES.has(result.error?.code)) {
-          cleanups.push(
-              db.collection('users').doc(tokenOwners.get(token)).update({
-                fcmTokens: FieldValue.arrayRemove(token),
-              }),
-          );
-        } else {
-          logger.warn('Push failed', {chatId, code: result.error?.code});
-        }
-      });
-      await Promise.all(cleanups);
-
-      logger.info('Pushes sent', {
-        chatId,
-        sent: response.successCount,
-        failed: response.failureCount,
+        tag: chatId,
       });
     },
 );
@@ -161,5 +184,67 @@ exports.cleanUpDeletedMessage = onDocumentDeleted(
       await Promise.all(paths.map((path) =>
         getStorage().bucket().file(path).delete({ignoreNotFound: true}),
       ));
+    },
+);
+
+// Reactions saved before they were emoji, by their old id.
+const LEGACY_REACTIONS = {
+  love: '❤️',
+  like: '👍',
+  laugh: '😂',
+  sad: '😢',
+  fire: '🔥',
+  dislike: '👎',
+};
+
+/**
+ * Tells the author of a message when someone reacts to it. Only new or
+ * changed reactions notify; removing one, editing the text or reacting to
+ * your own message does not.
+ */
+exports.notifyReaction = onDocumentUpdated(
+    'chats/{chatId}/messages/{messageId}',
+    async (event) => {
+      const before = event.data?.before.data();
+      const after = event.data?.after.data();
+      if (!before || !after) return;
+
+      const oldReactions = before.reactions || {};
+      const newReactions = after.reactions || {};
+      const reactorIds = Object.keys(newReactions).filter((uid) =>
+        uid !== after.senderId &&
+        typeof newReactions[uid] === 'string' &&
+        newReactions[uid] !== oldReactions[uid],
+      );
+      if (reactorIds.length === 0) return;
+
+      const {chatId, messageId} = event.params;
+      const chatSnap = await getFirestore().collection('chats').doc(chatId)
+          .get();
+      if (!chatSnap.exists) return;
+      const chatName = (chatSnap.data().name || '').trim();
+
+      // Normally one reaction per update.
+      for (const uid of reactorIds) {
+        let reactorName = 'Someone';
+        try {
+          const user = await getAuth().getUser(uid);
+          reactorName = (user.displayName || '').trim() || reactorName;
+        } catch (_) {
+          // An unknown user still gets a reaction notification.
+        }
+
+        const reaction = newReactions[uid];
+        const emoji = LEGACY_REACTIONS[reaction] || reaction;
+        const quoted = shorten(describeMessage(after));
+
+        await sendToUsers([after.senderId], {
+          title: chatName || reactorName,
+          body: `${reactorName} reacted ${emoji} to: ${quoted}`,
+          data: {chatCode: chatId, chatName},
+          // One notification per message, updated if reactions keep coming.
+          tag: `reaction-${messageId}`,
+        });
+      }
     },
 );
