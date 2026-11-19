@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/custom_app_bar.dart';
+import 'package:sinai/common/progressive_blur.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/composer_controller.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
@@ -58,6 +59,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   final ScrollController _messagesScrollController = ScrollController();
   final ComposerController _composer = ComposerController();
   final FocusNode _fieldFocus = FocusNode();
+
+  /// Height of the input overlay at the bottom, measured after layout.
+  double _inputHeight = 90;
 
   final Map<String, GlobalKey> _messageKeys = {};
 
@@ -272,9 +276,11 @@ class _ChatScreenViewState extends State<ChatScreenView> {
               _handleExitToChats();
             }
           },
-          child: Column(
+          // The list runs under the input, which sits on a blur that fades
+          // in towards the bottom instead of cutting messages off.
+          child: Stack(
             children: [
-              Expanded(
+              Positioned.fill(
                 child: BlocBuilder<ChatBloc, ChatState>(
                   builder: (context, state) {
                     if (state is ChatLoading) {
@@ -295,7 +301,10 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                       return ListView.builder(
                         controller: _messagesScrollController,
                         reverse: true,
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                        // Room for the input overlay, so the newest message
+                        // can scroll fully above it.
+                        padding:
+                            EdgeInsets.fromLTRB(16, 4, 16, _inputHeight + 12),
                         itemCount:
                             messages.length + (state.isLoadingMore ? 1 : 0),
                         itemBuilder: (context, reversedIndex) {
@@ -394,52 +403,88 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                   },
                 ),
               ),
-              BlocBuilder<ChatBloc, ChatState>(
-                buildWhen: (previous, current) =>
-                    (previous is MessagesLoaded && previous.isSendingImage) !=
-                    (current is MessagesLoaded && current.isSendingImage),
-                builder: (context, state) {
-                  if (state is! MessagesLoaded || !state.isSendingImage) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      spacing: 10,
-                      children: [
-                        SizedBox.square(
-                          dimension: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: context.colorTheme.secondary,
-                          ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: MeasureSize(
+                  onChange: (size) {
+                    if (size.height != _inputHeight) {
+                      setState(() => _inputHeight = size.height);
+                    }
+                  },
+                  child: Stack(
+                    // The blur reaches above the input; the default clip
+                    // would cut it off at the input's top as a hard line.
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        // Starts a little above the input so the fade is
+                        // gradual rather than a hard line.
+                        top: -50,
+                        child: ProgressiveBlur(
+                          color: context.colorTheme.backgroundPrimary,
                         ),
-                        Text(
-                          'Sending…',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: context.colorTheme.textSecondary,
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          BlocBuilder<ChatBloc, ChatState>(
+                            buildWhen: (previous, current) =>
+                                (previous is MessagesLoaded &&
+                                    previous.isSendingImage) !=
+                                (current is MessagesLoaded &&
+                                    current.isSendingImage),
+                            builder: (context, state) {
+                              if (state is! MessagesLoaded ||
+                                  !state.isSendingImage) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  spacing: 10,
+                                  children: [
+                                    SizedBox.square(
+                                      dimension: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: context.colorTheme.secondary,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Sending…',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: context.colorTheme.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(15),
-                  child: MessageField(
-                    chatController: chatController,
-                    chatCode: widget.chatCode,
-                    composer: _composer,
-                    focusNode: _fieldFocus,
-                    onMessageSent: () {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _scrollToBottom();
-                      });
-                    },
+                          SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.all(15),
+                              child: MessageField(
+                                chatController: chatController,
+                                chatCode: widget.chatCode,
+                                composer: _composer,
+                                focusNode: _fieldFocus,
+                                onMessageSent: () {
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    _scrollToBottom();
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
