@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -20,6 +23,13 @@ class MessageMenuMoreReactions extends MessageMenuResult {
   const MessageMenuMoreReactions();
 }
 
+/// Long press on a quick reaction: replace the emoji in that slot.
+class MessageMenuEditQuick extends MessageMenuResult {
+  const MessageMenuEditQuick(this.slot);
+
+  final int slot;
+}
+
 enum MessageMenuAction { reply, copy, edit, delete }
 
 class MessageMenuActionResult extends MessageMenuResult {
@@ -29,9 +39,28 @@ class MessageMenuActionResult extends MessageMenuResult {
 }
 
 const _deleteColor = Color(0xFFDC2626);
+const _menuWidth = 284.0;
+const _reactionsRowHeight = 52.0;
+const _actionHeight = 46.0;
+
+OverlayEntry? _openMenu;
+Completer<MessageMenuResult?>? _openMenuResult;
+
+/// Closes the open message menu, if any, completing it with [result].
+void closeMessageMenu([MessageMenuResult? result]) {
+  final completer = _openMenuResult;
+  _openMenu?.remove();
+  _openMenu = null;
+  _openMenuResult = null;
+  if (completer != null && !completer.isCompleted) completer.complete(result);
+}
 
 /// Small popup next to a message with a row of reactions and the actions
 /// that apply to it. [anchor] is the context of the message bubble.
+///
+/// Drawn in the overlay rather than pushed as a route: pushing a route
+/// cancels the finger that is still on the message, which would end the
+/// long press and with it the drag-to-react gesture.
 Future<MessageMenuResult?> showMessageMenu(
   BuildContext anchor, {
   required String? currentReaction,
@@ -40,137 +69,181 @@ Future<MessageMenuResult?> showMessageMenu(
   required bool canEdit,
   required bool canDelete,
 }) {
+  closeMessageMenu();
+
+  final overlay = Overlay.of(anchor, rootOverlay: true);
+  final overlayBox = overlay.context.findRenderObject()! as RenderBox;
   final box = anchor.findRenderObject()! as RenderBox;
-  final overlay =
-      Navigator.of(anchor).overlay!.context.findRenderObject()! as RenderBox;
-  final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
-  final bubble = topLeft & box.size;
+  final bubble =
+      box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
+  final screen = overlayBox.size;
+  final padding = MediaQuery.paddingOf(anchor);
 
-  HapticFeedback.mediumImpact();
+  final actions = [
+    if (canReply) (MessageMenuAction.reply, 'Reply', Icons.reply, null),
+    if (canCopy) (MessageMenuAction.copy, 'Copy', Icons.copy_rounded, null),
+    if (canEdit) (MessageMenuAction.edit, 'Edit', Icons.edit_outlined, null),
+    if (canDelete)
+      (MessageMenuAction.delete, 'Delete', Icons.delete_outline, _deleteColor),
+  ];
+  final menuHeight = _reactionsRowHeight +
+      (actions.isEmpty ? 0 : 1 + actions.length * _actionHeight) +
+      8;
 
-  return showMenu<MessageMenuResult>(
-    context: anchor,
-    // Opens just under the bubble; Flutter moves it above when there is no
-    // room below.
-    position: RelativeRect.fromRect(
-      Rect.fromLTWH(bubble.left, bubble.bottom + 4, bubble.width, 0),
-      Offset.zero & overlay.size,
-    ),
-    color: anchor.colorTheme.backgroundSecondary,
-    surfaceTintColor: Colors.transparent,
-    elevation: 8,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    constraints: const BoxConstraints(minWidth: 264, maxWidth: 264),
-    items: [
-      _ReactionsEntry(current: currentReaction),
-      const PopupMenuDivider(height: 1),
-      if (canReply)
-        _actionItem(anchor, MessageMenuAction.reply, 'Reply', Icons.reply),
-      if (canCopy)
-        _actionItem(
-          anchor,
-          MessageMenuAction.copy,
-          'Copy',
-          Icons.copy_rounded,
-        ),
-      if (canEdit)
-        _actionItem(
-          anchor,
-          MessageMenuAction.edit,
-          'Edit',
-          Icons.edit_outlined,
-        ),
-      if (canDelete)
-        _actionItem(
-          anchor,
-          MessageMenuAction.delete,
-          'Delete',
-          Icons.delete_outline,
-          color: _deleteColor,
-        ),
-    ],
-  );
-}
+  // Under the bubble when it fits, otherwise above it, otherwise as low as
+  // the screen allows.
+  const gap = 6.0;
+  final bottomLimit = screen.height - padding.bottom - 8;
+  var top = bubble.bottom + gap;
+  if (top + menuHeight > bottomLimit) {
+    top = bubble.top - gap - menuHeight;
+    if (top < padding.top + 8) top = bottomLimit - menuHeight;
+  }
 
-PopupMenuItem<MessageMenuResult> _actionItem(
-  BuildContext context,
-  MessageMenuAction action,
-  String label,
-  IconData icon, {
-  Color? color,
-}) {
-  final textColor = color ?? context.colorTheme.textPrimary;
+  // Lined up with the side of the screen the bubble is on.
+  final onRight = bubble.center.dx > screen.width / 2;
+  final left = (onRight ? bubble.right - _menuWidth : bubble.left)
+      .clamp(12.0, screen.width - _menuWidth - 12);
 
-  return PopupMenuItem<MessageMenuResult>(
-    value: MessageMenuActionResult(action),
-    height: 46,
-    child: Row(
+  final completer = Completer<MessageMenuResult?>();
+  final entry = OverlayEntry(
+    builder: (context) => Stack(
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: context.textTheme.bodyLarge.copyWith(color: textColor),
+        // Tapping anywhere else closes the menu.
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: closeMessageMenu,
+            child: const ColoredBox(color: Color(0x14000000)),
           ),
         ),
-        Icon(icon, size: 20, color: color ?? context.colorTheme.textSecondary),
+        Positioned(
+          left: left,
+          top: top,
+          width: _menuWidth,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOutCubic,
+            builder: (context, t, child) => Opacity(
+              opacity: t,
+              child: Transform.scale(
+                scale: 0.92 + 0.08 * t,
+                alignment: onRight ? Alignment.topRight : Alignment.topLeft,
+                child: child,
+              ),
+            ),
+            child: _MenuCard(
+              currentReaction: currentReaction,
+              actions: actions,
+            ),
+          ),
+        ),
       ],
     ),
   );
+
+  _openMenu = entry;
+  _openMenuResult = completer;
+  overlay.insert(entry);
+  HapticFeedback.mediumImpact();
+  return completer.future;
 }
 
-/// Row of reactions at the top of the menu.
-class _ReactionsEntry extends PopupMenuEntry<MessageMenuResult> {
-  const _ReactionsEntry({required this.current});
+class _MenuCard extends StatelessWidget {
+  const _MenuCard({required this.currentReaction, required this.actions});
 
-  final String? current;
+  final String? currentReaction;
+  final List<(MessageMenuAction, String, IconData, Color?)> actions;
 
-  @override
-  double get height => 52;
-
-  @override
-  bool represents(MessageMenuResult? value) => false;
-
-  @override
-  State<_ReactionsEntry> createState() => _ReactionsEntryState();
-}
-
-class _ReactionsEntryState extends State<_ReactionsEntry> {
   @override
   Widget build(BuildContext context) {
+    final colors = context.colorTheme;
     final current =
-        widget.current == null ? null : Reactions.emojiOf(widget.current!);
+        currentReaction == null ? null : Reactions.emojiOf(currentReaction!);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          for (final emoji in Reactions.quick)
-            QuickReactionButton(
-              emoji: emoji,
-              selected: emoji == current,
-              onTap: () => Navigator.of(context).pop(MessageMenuReact(emoji)),
-            ),
-          Material(
-            color: context.colorTheme.backgroundPrimary,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: () => Navigator.of(context).pop(
-                const MessageMenuMoreReactions(),
-              ),
-              child: SizedBox.square(
-                dimension: 32,
-                child: Icon(
-                  Icons.add,
-                  size: 20,
-                  color: context.colorTheme.textSecondary,
-                  semanticLabel: 'More reactions',
+    return Material(
+      color: colors.backgroundSecondary,
+      elevation: 8,
+      shadowColor: const Color(0x55000000),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: _reactionsRowHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    for (final (slot, emoji)
+                        in QuickReactionsStore.instance.reactions.value.indexed)
+                      QuickReactionButton(
+                        emoji: emoji,
+                        selected: emoji == current,
+                        onTap: () => closeMessageMenu(MessageMenuReact(emoji)),
+                        // Long press replaces this emoji in the user's set.
+                        onLongPress: () =>
+                            closeMessageMenu(MessageMenuEditQuick(slot)),
+                      ),
+                    Material(
+                      color: colors.backgroundPrimary,
+                      shape: const CircleBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => closeMessageMenu(
+                          const MessageMenuMoreReactions(),
+                        ),
+                        child: SizedBox.square(
+                          dimension: 32,
+                          child: Icon(
+                            Icons.add,
+                            size: 20,
+                            color: colors.textSecondary,
+                            semanticLabel: 'More reactions',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+            if (actions.isNotEmpty) Divider(height: 1, color: colors.border),
+            for (final (action, label, icon, color) in actions)
+              InkWell(
+                onTap: () => closeMessageMenu(MessageMenuActionResult(action)),
+                child: SizedBox(
+                  height: _actionHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            label,
+                            style: context.textTheme.bodyLarge.copyWith(
+                              color: color ?? colors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          icon,
+                          size: 20,
+                          color: color ?? colors.textSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -8,10 +8,12 @@ import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/progressive_blur.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/composer_controller.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
 import 'package:sinai/features/chat/widgets/message_bubble.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
+import 'package:sinai/features/chat/widgets/message_menu.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
@@ -211,6 +213,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   void initState() {
     super.initState();
     _messagesScrollController.addListener(_loadMoreWhenNearTop);
+    QuickReactionsStore.instance.start();
   }
 
   /// The list is reversed, so the end of the scroll extent is the oldest
@@ -234,6 +237,8 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   @override
   void dispose() {
     VoicePlayer.instance.stop();
+    // The menu lives in the app-wide overlay; don't leave it behind.
+    closeMessageMenu();
     chatController.dispose();
     _composer.dispose();
     _highlightTimer?.cancel();

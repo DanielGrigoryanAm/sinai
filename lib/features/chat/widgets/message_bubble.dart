@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
 import 'package:sinai/features/chat/widgets/message_menu.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
@@ -52,8 +53,9 @@ class MessageBubble extends StatelessWidget {
   /// is done from the reaction chip or the picker.
   void _like() {
     final mine = message.reactions[myId];
-    if (mine != null && Reactions.emojiOf(mine) == Reactions.like) return;
-    onReact?.call(Reactions.like);
+    final like = QuickReactionsStore.instance.like;
+    if (mine != null && Reactions.emojiOf(mine) == like) return;
+    onReact?.call(like);
   }
 
   /// Message actions; each is null when it does not apply to this message.
@@ -65,6 +67,14 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onReplyTap;
 
   /// Long press: reactions plus reply, copy, edit and delete.
+  /// Release after dragging through the small reaction strip. Sets the
+  /// reaction; picking the one already left keeps it rather than removing.
+  void _pickFromScrubber(String emoji) {
+    final mine = message.reactions[myId];
+    if (mine != null && Reactions.emojiOf(mine) == emoji) return;
+    onReact?.call(emoji);
+  }
+
   Future<void> _openMenu(BuildContext bubbleContext) async {
     final canCopy = message.text.trim().isNotEmpty;
     final result = await showMessageMenu(
@@ -83,6 +93,9 @@ class MessageBubble extends StatelessWidget {
         if (!bubbleContext.mounted) return;
         final emoji = await showEmojiPicker(bubbleContext);
         if (emoji != null) onReact?.call(emoji);
+      case MessageMenuEditQuick(:final slot):
+        if (!bubbleContext.mounted) return;
+        await showEmojiPicker(bubbleContext, editSlot: slot);
       case MessageMenuActionResult(action: MessageMenuAction.reply):
         onReply?.call();
       case MessageMenuActionResult(action: MessageMenuAction.copy):
@@ -313,6 +326,10 @@ class MessageBubble extends StatelessWidget {
                 // Messages still being sent have nothing to act on yet.
                 onLongPress: message.createdAt == null ? null : _openMenu,
                 onDoubleTap: onReact == null ? null : _like,
+                onScrubPick: onReact == null || message.createdAt == null
+                    ? null
+                    : _pickFromScrubber,
+                currentReaction: message.reactions[myId],
                 child: message.isImage
                     ? _buildImage(context, bubbleRadius)
                     : message.isVoice
@@ -460,11 +477,22 @@ class _DoubleTapLike extends StatefulWidget {
     required this.child,
     required this.onDoubleTap,
     required this.onLongPress,
+    this.onScrubPick,
+    this.currentReaction,
   });
 
   final Widget child;
   final VoidCallback? onDoubleTap;
-  final void Function(BuildContext bubbleContext)? onLongPress;
+
+  /// Opens the message menu; completes when it closes.
+  final Future<void> Function(BuildContext bubbleContext)? onLongPress;
+
+  /// Dragging up or down while still holding swaps the menu for a small
+  /// strip of reactions; this gets the one in its middle on release.
+  final ValueChanged<String>? onScrubPick;
+
+  /// The user's reaction on this message, where the strip starts.
+  final String? currentReaction;
 
   @override
   State<_DoubleTapLike> createState() => _DoubleTapLikeState();
@@ -494,10 +522,116 @@ class _DoubleTapLikeState extends State<_DoubleTapLike>
     TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 30),
   ]).animate(_heart);
 
+  /// How far the finger moves before the menu turns into the strip, and
+  /// how far it moves per emoji after that.
+  static const _scrubThreshold = 14.0;
+  static const _scrubStep = 38.0;
+
+  bool _menuOpen = false;
+  Offset? _pressStart;
+  OverlayEntry? _scrubber;
+  final ValueNotifier<double> _scrubPosition = ValueNotifier(0);
+  double _scrubStartIndex = 0;
+  int _scrubIndex = 0;
+  List<String> _scrubEmojis = const [];
+
   @override
   void dispose() {
+    _removeScrubber();
+    _scrubPosition.dispose();
     _heart.dispose();
     super.dispose();
+  }
+
+  void _onLongPressStart(LongPressStartDetails details) {
+    _pressStart = details.globalPosition;
+    _menuOpen = true;
+    widget.onLongPress!(context).whenComplete(() => _menuOpen = false);
+  }
+
+  void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    final start = _pressStart;
+    if (start == null || widget.onScrubPick == null) return;
+
+    final dy = details.globalPosition.dy - start.dy;
+    if (_scrubber == null) {
+      if (dy.abs() < _scrubThreshold) return;
+      _startScrubbing(details.globalPosition);
+    }
+
+    // Down moves to the next emoji, up to the previous one.
+    final travelled = dy - dy.sign * _scrubThreshold;
+    final value = (_scrubStartIndex + travelled / _scrubStep)
+        .clamp(0.0, (_scrubEmojis.length - 1).toDouble());
+    _scrubPosition.value = value;
+
+    final index = value.round();
+    if (index != _scrubIndex) {
+      _scrubIndex = index;
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) {
+    if (_scrubber != null) {
+      final emoji = _scrubEmojis[_scrubIndex];
+      _removeScrubber();
+      widget.onScrubPick?.call(emoji);
+    }
+    _pressStart = null;
+  }
+
+  void _startScrubbing(Offset finger) {
+    // The finger left the menu: close it and show the strip instead.
+    if (_menuOpen) {
+      _menuOpen = false;
+      closeMessageMenu();
+    }
+
+    final current = widget.currentReaction == null
+        ? null
+        : Reactions.emojiOf(widget.currentReaction!);
+    _scrubEmojis = QuickReactionsStore.instance.reactions.value;
+    final startIndex = current == null ? -1 : _scrubEmojis.indexOf(current);
+    _scrubStartIndex = startIndex < 0 ? 0 : startIndex.toDouble();
+    _scrubIndex = _scrubStartIndex.round();
+    _scrubPosition.value = _scrubStartIndex;
+
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final overlayBox = overlay.context.findRenderObject()! as RenderBox;
+    final bubbleBox = context.findRenderObject()! as RenderBox;
+    final bubble = bubbleBox.localToGlobal(Offset.zero, ancestor: overlayBox) &
+        bubbleBox.size;
+    final screen = overlayBox.size;
+    final topInset = MediaQuery.paddingOf(context).top;
+
+    // Above the bubble when there is room, otherwise below it; centred on
+    // the finger and kept on screen.
+    const gap = 10.0;
+    var top = bubble.top - ReactionScrubber.height - gap;
+    if (top < topInset + 8) top = bubble.bottom + gap;
+    final left = (finger.dx - ReactionScrubber.width / 2)
+        .clamp(12.0, screen.width - ReactionScrubber.width - 12);
+
+    _scrubber = OverlayEntry(
+      builder: (context) => Positioned(
+        left: left,
+        top: top,
+        child: IgnorePointer(
+          child: ReactionScrubber(
+            emojis: _scrubEmojis,
+            position: _scrubPosition,
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_scrubber!);
+    HapticFeedback.lightImpact();
+  }
+
+  void _removeScrubber() {
+    _scrubber?.remove();
+    _scrubber = null;
   }
 
   void _onDoubleTap() {
@@ -509,9 +643,14 @@ class _DoubleTapLikeState extends State<_DoubleTapLike>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onLongPress: widget.onLongPress == null
-          ? null
-          : () => widget.onLongPress!(context),
+      onLongPressStart: widget.onLongPress == null ? null : _onLongPressStart,
+      onLongPressMoveUpdate:
+          widget.onLongPress == null ? null : _onLongPressMoveUpdate,
+      onLongPressEnd: widget.onLongPress == null ? null : _onLongPressEnd,
+      onLongPressCancel: () {
+        _removeScrubber();
+        _pressStart = null;
+      },
       onDoubleTap: widget.onDoubleTap == null ? null : _onDoubleTap,
       child: Stack(
         alignment: Alignment.center,
