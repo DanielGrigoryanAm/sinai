@@ -49,6 +49,37 @@ class NotificationService {
     }
   }
 
+  /// Points this phone's notifications at the signed-in account, e.g.
+  /// after switching to another account by phone number.
+  Future<void> addTokenToCurrentUser() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) await _saveToken(token);
+    } catch (e) {
+      debugPrint('Could not attach the push token: $e');
+    }
+  }
+
+  /// Stops this phone from getting the signed-in account's notifications.
+  /// Called before signing in to another account, while the current one
+  /// may still be edited.
+  Future<void> removeTokenFromCurrentUser() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        {
+          'fcmTokens': FieldValue.arrayRemove([token])
+        },
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('Could not detach the push token: $e');
+    }
+  }
+
   Future<void> _saveToken(String token) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;

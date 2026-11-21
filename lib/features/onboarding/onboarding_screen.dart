@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
+import 'package:sinai/common/feature_flags.dart';
 import 'package:sinai/common/custom_text_field.dart';
 import 'package:sinai/common/gyro_horizontal_background.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/gen/assets.gen.dart';
 import 'package:sinai/router/app_router.dart';
+import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 @RoutePage()
@@ -77,7 +79,22 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
                 text: 'Start',
                 onTap: name.isNotEmpty ? () => _onStart(name) : null,
               ),
-              SizedBox(height: 60),
+              if (FeatureFlags.phoneSignIn) ...[
+                SizedBox(height: 12),
+                TextButton(
+                  onPressed: () =>
+                      context.router.push(PhoneRoute(restore: true)),
+                  child: Text(
+                    'Already have an account? Restore it',
+                    style: context.textTheme.bodySmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.colorTheme.secondary,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 36),
+              ] else
+                SizedBox(height: 60),
             ],
           ),
         ),

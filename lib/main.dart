@@ -1,9 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sinai/auth/bloc/auth_bloc.dart';
-import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
@@ -38,23 +35,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiBlocProvider(
-      providers: [
-        BlocProvider(
-          create: (_) => AuthBloc(authRepository: AuthRepository()),
-        ),
-      ],
-      child: MaterialApp.router(
-        // The app only has a light design so far; a system dark theme would
-        // lack the typography extension every screen relies on.
-        themeMode: ThemeMode.light,
-        routerConfig: appRouter.config(),
-        theme: ThemeData(
-          textTheme: GoogleFonts.interTextTheme(),
-          extensions: <ThemeExtension<dynamic>>[
-            AppTypography.defaultTypography(),
-          ],
-        ),
+    return MaterialApp.router(
+      // The app only has a light design so far; a system dark theme would
+      // lack the typography extension every screen relies on.
+      themeMode: ThemeMode.light,
+      routerConfig: appRouter.config(),
+      theme: ThemeData(
+        textTheme: GoogleFonts.interTextTheme(),
+        extensions: <ThemeExtension<dynamic>>[
+          AppTypography.defaultTypography(),
+        ],
       ),
     );
   }

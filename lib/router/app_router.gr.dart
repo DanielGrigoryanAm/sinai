@@ -179,6 +179,52 @@ class OnboardingRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [PhoneScreen]
+class PhoneRoute extends PageRouteInfo<PhoneRouteArgs> {
+  PhoneRoute({Key? key, bool restore = false, List<PageRouteInfo>? children})
+      : super(
+          PhoneRoute.name,
+          args: PhoneRouteArgs(key: key, restore: restore),
+          initialChildren: children,
+        );
+
+  static const String name = 'PhoneRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      final args = data.argsAs<PhoneRouteArgs>(
+        orElse: () => const PhoneRouteArgs(),
+      );
+      return PhoneScreen(key: args.key, restore: args.restore);
+    },
+  );
+}
+
+class PhoneRouteArgs {
+  const PhoneRouteArgs({this.key, this.restore = false});
+
+  final Key? key;
+
+  final bool restore;
+
+  @override
+  String toString() {
+    return 'PhoneRouteArgs{key: $key, restore: $restore}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! PhoneRouteArgs) return false;
+    return key == other.key && restore == other.restore;
+  }
+
+  @override
+  int get hashCode => key.hashCode ^ restore.hashCode;
+}
+
+/// generated route for
 /// [ProfileScreen]
 class ProfileRoute extends PageRouteInfo<void> {
   const ProfileRoute({List<PageRouteInfo>? children})

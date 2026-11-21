@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/chat_screen.dart';
 import 'package:sinai/features/chats/chats_screen.dart';
 import 'package:sinai/features/onboarding/onboarding_screen.dart';
+import 'package:sinai/features/phone/phone_screen.dart';
 import 'package:sinai/features/profile/profile_screen.dart';
 import 'package:sinai/features/start_chat/chat_ready_screen.dart';
 import 'package:sinai/features/start_chat/create_chat_screen.dart';
@@ -41,6 +42,9 @@ class AppRouter extends RootStackRouter {
         ),
         AutoRoute(
           page: ProfileRoute.page,
+        ),
+        AutoRoute(
+          page: PhoneRoute.page,
         ),
       ];
 }
