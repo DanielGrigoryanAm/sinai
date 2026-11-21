@@ -8,6 +8,7 @@ import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
@@ -26,7 +27,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<CreateChatEvent>(_onCreateChat);
     on<JoinChatEvent>(_onJoinChat);
     on<SendMessageEvent>(_onSendMessage);
-    on<SendImageEvent>(_onSendImage);
+    // One at a time, so several photos arrive in the order they were picked.
+    on<SendImageEvent>(_onSendImage, transformer: sequential());
     on<SendVoiceEvent>(_onSendVoice);
     on<ToggleReactionEvent>(_onToggleReaction);
     on<EditMessageEvent>(_onEditMessage);
@@ -626,7 +628,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           .doc(event.chatCode)
           .collection('messages')
           .add({
-        'text': '',
+        'text': event.caption,
         'imageUrl': imageUrl,
         'imageWidth': width,
         'imageHeight': height,
@@ -821,6 +823,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
           },
           replyTo: ReplyPreview.fromMap(data['replyTo']),
           isEdited: data.containsKey('editedAt'),
+          forwardedFrom: data['forwardedFrom'] as String?,
         );
       }).toList();
 

@@ -31,7 +31,7 @@ class MessageMenuEditQuick extends MessageMenuResult {
   final int slot;
 }
 
-enum MessageMenuAction { reply, copy, edit, delete }
+enum MessageMenuAction { reply, forward, copy, edit, delete }
 
 class MessageMenuActionResult extends MessageMenuResult {
   const MessageMenuActionResult(this.action);
@@ -67,6 +67,7 @@ Future<MessageMenuResult?> showMessageMenu(
   required String? currentReaction,
   required bool canReply,
   required bool canCopy,
+  bool canForward = false,
   required bool canEdit,
   required bool canDelete,
 }) {
@@ -82,6 +83,8 @@ Future<MessageMenuResult?> showMessageMenu(
 
   final actions = [
     if (canReply) (MessageMenuAction.reply, 'Reply', AppIcons.reply, null),
+    if (canForward)
+      (MessageMenuAction.forward, 'Forward', AppIcons.forward, null),
     if (canCopy) (MessageMenuAction.copy, 'Copy', AppIcons.copy, null),
     if (canEdit) (MessageMenuAction.edit, 'Edit', AppIcons.edit, null),
     if (canDelete)

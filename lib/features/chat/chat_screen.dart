@@ -10,6 +10,8 @@ import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/progressive_blur.dart';
 import 'package:sinai/features/chat/chat_status.dart';
+import 'package:sinai/features/chat/draft_store.dart';
+import 'package:sinai/features/chat/forward.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/typing_reporter.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
@@ -248,6 +250,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       }
     }, onError: (_) {});
     _messagesScrollController.addListener(_loadMoreWhenNearTop);
+    _messagesScrollController.addListener(_trackScrolledAway);
+    chatController.text = DraftStore.instance.get(widget.chatCode);
+    chatController.addListener(_saveDraft);
     QuickReactionsStore.instance.start();
     // Created now so typing is reported from the first keystroke.
     _typing;
@@ -259,6 +264,38 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     final position = _messagesScrollController.position;
     if (position.pixels < position.maxScrollExtent - 300) return;
     context.read<ChatBloc>().add(const LoadMoreMessagesEvent());
+  }
+
+  void _saveDraft() {
+    // Text being edited is the old message, not a draft.
+    if (_composer.editing != null) return;
+    DraftStore.instance.set(widget.chatCode, chatController.text);
+  }
+
+  /// Scrolled up far enough to show the "to the latest" button.
+  bool _scrolledAway = false;
+
+  /// Messages from others that arrived while scrolled away.
+  int _newWhileAway = 0;
+  String? _lastMessageId;
+
+  void _trackScrolledAway() {
+    final away = _messagesScrollController.offset > 400;
+    if (away == _scrolledAway) return;
+    setState(() {
+      _scrolledAway = away;
+      if (!away) _newWhileAway = 0;
+    });
+  }
+
+  void _onMessagesChanged(MessagesLoaded state) {
+    if (state.messages.isEmpty) return;
+    final last = state.messages.last;
+    final previous = _lastMessageId;
+    _lastMessageId = last.id;
+    if (previous == null || previous == last.id || !_scrolledAway) return;
+    if (last.senderId == FirebaseAuth.instance.currentUser?.uid) return;
+    setState(() => _newWhileAway++);
   }
 
   void _scrollToBottom() {
@@ -344,6 +381,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                 SnackBar(content: Text(state.message)),
               );
             }
+            if (state is MessagesLoaded) _onMessagesChanged(state);
             if (state is ChatDeleted) {
               _handleExitToChats();
             }
@@ -449,6 +487,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                                       : () => _reply(message),
                                   // Only text can be edited; photos and voice
                                   // messages are deleted and sent again.
+                                  onForward: message.createdAt == null
+                                      ? null
+                                      : () => forwardMessage(context, message),
                                   onEdit: isMe &&
                                           message.createdAt != null &&
                                           !message.isImage &&
@@ -473,6 +514,18 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
                     return const SizedBox.shrink();
                   },
+                ),
+              ),
+              Positioned(
+                right: 16,
+                bottom: _inputHeight + 8,
+                child: AnimatedScale(
+                  scale: _scrolledAway ? 1 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: _ToLatestButton(
+                    count: _newWhileAway,
+                    onTap: _scrollToBottom,
+                  ),
                 ),
               ),
               Positioned(
@@ -564,6 +617,70 @@ class _ChatScreenViewState extends State<ChatScreenView> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Round button that jumps to the newest message, with the number of new
+/// messages that arrived while the user was reading older ones.
+class _ToLatestButton extends StatelessWidget {
+  const _ToLatestButton({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: Colors.white,
+          shape: const CircleBorder(),
+          elevation: 3,
+          shadowColor: Colors.black26,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(
+                AppIcons.arrowDown,
+                size: 20,
+                color: colors.textPrimary,
+                semanticLabel: 'Latest messages',
+              ),
+            ),
+          ),
+        ),
+        if (count > 0)
+          Positioned(
+            top: -6,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 20),
+                decoration: BoxDecoration(
+                  color: colors.secondary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : '$count',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

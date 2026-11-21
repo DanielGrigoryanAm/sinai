@@ -49,11 +49,15 @@ class SendImageEvent extends ChatEvent {
   final String contentType;
   final ReplyPreview? replyTo;
 
+  /// Text shown under the photo.
+  final String caption;
+
   const SendImageEvent({
     required this.chatCode,
     required this.bytes,
     this.contentType = 'image/jpeg',
     this.replyTo,
+    this.caption = '',
   });
 
   @override

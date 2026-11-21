@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sinai/common/chat_avatar.dart';
@@ -343,6 +344,45 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Material(
+                      color: colors.backgroundPrimary,
+                      borderRadius: BorderRadius.circular(18),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                ChatMediaScreen(chatCode: widget.chatCode),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(AppIcons.images, color: colors.textPrimary),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Photos & voice messages',
+                                  style: text.bodyLarge.copyWith(
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                AppIcons.arrowRight,
+                                size: 18,
+                                color: colors.textSecondary,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     if (memberIds.isNotEmpty) ...[

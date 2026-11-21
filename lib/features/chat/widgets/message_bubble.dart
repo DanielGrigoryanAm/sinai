@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
+import 'package:sinai/features/chat/widgets/link_text.dart';
 import 'package:sinai/features/chat/widgets/message_menu.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
@@ -23,6 +24,7 @@ class MessageBubble extends StatelessWidget {
     this.myId,
     this.onReact,
     this.onReply,
+    this.onForward,
     this.onEdit,
     this.onDelete,
     this.onReplyTap,
@@ -61,6 +63,7 @@ class MessageBubble extends StatelessWidget {
 
   /// Message actions; each is null when it does not apply to this message.
   final VoidCallback? onReply;
+  final VoidCallback? onForward;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -82,6 +85,7 @@ class MessageBubble extends StatelessWidget {
       bubbleContext,
       currentReaction: message.reactions[myId],
       canReply: onReply != null,
+      canForward: onForward != null,
       canCopy: canCopy,
       canEdit: onEdit != null,
       canDelete: onDelete != null,
@@ -99,6 +103,8 @@ class MessageBubble extends StatelessWidget {
         await showEmojiPicker(bubbleContext, editSlot: slot);
       case MessageMenuActionResult(action: MessageMenuAction.reply):
         onReply?.call();
+      case MessageMenuActionResult(action: MessageMenuAction.forward):
+        onForward?.call();
       case MessageMenuActionResult(action: MessageMenuAction.copy):
         await Clipboard.setData(ClipboardData(text: message.text));
         if (bubbleContext.mounted) {
@@ -189,9 +195,32 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
+  /// Adds a preview card of the first link in the text under [content].
+  Widget _withLinkPreview(Widget content) {
+    final uri = firstLink(message.text);
+    if (uri == null) return content;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        content,
+        LinkPreview(
+          uri: uri,
+          accent: isMe ? const Color(0xFF1D5FA8) : const Color(0xFFB8860B),
+        ),
+      ],
+    );
+  }
+
   /// Picture message: the photo fills the bubble and the time sits on a
   /// dark pill over its corner. Tapping opens it full screen.
-  Widget _buildImage(BuildContext context, BorderRadius radius) {
+  Widget _buildImage(
+    BuildContext context,
+    BorderRadius radius,
+    Color bubbleColor,
+    Color metaColor,
+  ) {
+    final caption = message.text.trim();
     final colors = context.colorTheme;
     final imageUrl = message.imageUrl!;
 
@@ -216,52 +245,89 @@ class MessageBubble extends StatelessWidget {
           boxShadow: _shadow,
         ),
         clipBehavior: Clip.antiAlias,
-        child: AspectRatio(
-          aspectRatio: aspectRatio,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Cached on disk, so a photo is downloaded only once.
-              CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (context, url) => Center(
-                  child: SizedBox.square(
-                    dimension: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: colors.secondary,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: aspectRatio,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Cached on disk, so a photo is downloaded only once.
+                  CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    fadeInDuration: const Duration(milliseconds: 150),
+                    placeholder: (context, url) => Center(
+                      child: SizedBox.square(
+                        dimension: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: colors.secondary,
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Center(
+                      child: Icon(
+                        AppIcons.brokenImage,
+                        color: colors.textSecondary,
+                        size: 32,
+                      ),
                     ),
                   ),
-                ),
-                errorWidget: (context, url, error) => Center(
-                  child: Icon(
-                    AppIcons.brokenImage,
-                    color: colors.textSecondary,
-                    size: 32,
+                  if (caption.isEmpty)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0x8C000000),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: _buildMeta(
+                          context,
+                          color: Colors.white,
+                          seenColor: const Color(0xFF8EC5FF),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (caption.isNotEmpty)
+              Container(
+                color: bubbleColor,
+                padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+                child: _withLinkPreview(
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.end,
+                    spacing: 10,
+                    runSpacing: 2,
+                    children: [
+                      LinkText(
+                        caption,
+                        style: context.textTheme.bodyLarge.copyWith(
+                          height: 1.4,
+                          color: const Color(0xFF1B2030),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: _buildMeta(
+                          context,
+                          color: metaColor,
+                          seenColor: const Color(0xFF1D5FA8),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0x8C000000),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: _buildMeta(
-                    context,
-                    color: Colors.white,
-                    seenColor: const Color(0xFF8EC5FF),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -283,122 +349,247 @@ class MessageBubble extends StatelessWidget {
       bottomRight: _radius,
     );
 
-    return Padding(
-      // Messages of one sender sit close together; a new sender gets air.
-      padding: EdgeInsets.only(top: startsGroup ? 12 : 4),
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              if (startsGroup && !isMe)
-                Padding(
-                  padding: const EdgeInsets.only(left: 6, bottom: 4),
-                  child: Text(
-                    message.senderName,
-                    style: text.bodySmall.copyWith(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
+    return _SwipeToReply(
+      onReply: onReply,
+      child: Padding(
+        // Messages of one sender sit close together; a new sender gets air.
+        padding: EdgeInsets.only(top: startsGroup ? 12 : 4),
+        child: Align(
+          alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: Column(
+              crossAxisAlignment:
+                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (startsGroup && !isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6, bottom: 4),
+                    child: Text(
+                      message.senderName,
+                      style: text.bodySmall.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ),
-                ),
-              if (message.replyTo != null &&
-                  (message.isImage || message.isVoice))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                    decoration: BoxDecoration(
-                      color: isMe ? _myBubbleColor : colors.backgroundSecondary,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: _ReplyQuote(
-                      reply: message.replyTo!,
-                      isMe: isMe,
-                      onTap: onReplyTap,
-                    ),
-                  ),
-                ),
-              _DoubleTapLike(
-                // Messages still being sent have nothing to act on yet.
-                onLongPress: message.createdAt == null ? null : _openMenu,
-                onDoubleTap: onReact == null ? null : _like,
-                onScrubPick: onReact == null || message.createdAt == null
-                    ? null
-                    : _pickFromScrubber,
-                currentReaction: message.reactions[myId],
-                child: message.isImage
-                    ? _buildImage(context, bubbleRadius)
-                    : message.isVoice
-                        ? _VoiceBubble(
-                            message: message,
-                            color: isMe
-                                ? _myBubbleColor
-                                : colors.backgroundSecondary,
-                            radius: bubbleRadius,
-                            accentColor: isMe
-                                ? const Color(0xFF1D5FA8)
-                                : colors.secondary,
-                            meta: _buildMeta(
-                              context,
-                              color: metaColor,
-                              seenColor: const Color(0xFF1D5FA8),
+                if (message.forwardedFrom != null)
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(left: 6, right: 6, bottom: 3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          AppIcons.forward,
+                          size: 13,
+                          color: colors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'Forwarded from ${message.forwardedFrom}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: text.bodySmall.copyWith(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: colors.textSecondary,
                             ),
-                          )
-                        : Container(
-                            padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
-                            decoration: BoxDecoration(
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (message.replyTo != null &&
+                    (message.isImage || message.isVoice))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+                      decoration: BoxDecoration(
+                        color:
+                            isMe ? _myBubbleColor : colors.backgroundSecondary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: _ReplyQuote(
+                        reply: message.replyTo!,
+                        isMe: isMe,
+                        onTap: onReplyTap,
+                      ),
+                    ),
+                  ),
+                _DoubleTapLike(
+                  // Messages still being sent have nothing to act on yet.
+                  onLongPress: message.createdAt == null ? null : _openMenu,
+                  onDoubleTap: onReact == null ? null : _like,
+                  onScrubPick: onReact == null || message.createdAt == null
+                      ? null
+                      : _pickFromScrubber,
+                  currentReaction: message.reactions[myId],
+                  child: message.isImage
+                      ? _buildImage(
+                          context,
+                          bubbleRadius,
+                          isMe ? _myBubbleColor : colors.backgroundSecondary,
+                          metaColor,
+                        )
+                      : message.isVoice
+                          ? _VoiceBubble(
+                              message: message,
                               color: isMe
                                   ? _myBubbleColor
                                   : colors.backgroundSecondary,
-                              borderRadius: bubbleRadius,
-                              boxShadow: _shadow,
-                            ),
-                            // The time sits on the last line when it fits next to the
-                            // text and drops to its own line otherwise.
-                            child: _withQuote(
-                              Wrap(
-                                alignment: WrapAlignment.end,
-                                crossAxisAlignment: WrapCrossAlignment.end,
-                                spacing: 10,
-                                runSpacing: 2,
-                                children: [
-                                  Text(
-                                    message.text,
-                                    style: text.bodyLarge.copyWith(
-                                      height: 1.4,
-                                      color: const Color(0xFF1B2030),
+                              radius: bubbleRadius,
+                              accentColor: isMe
+                                  ? const Color(0xFF1D5FA8)
+                                  : colors.secondary,
+                              meta: _buildMeta(
+                                context,
+                                color: metaColor,
+                                seenColor: const Color(0xFF1D5FA8),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? _myBubbleColor
+                                    : colors.backgroundSecondary,
+                                borderRadius: bubbleRadius,
+                                boxShadow: _shadow,
+                              ),
+                              // The time sits on the last line when it fits next to the
+                              // text and drops to its own line otherwise.
+                              child: _withQuote(
+                                _withLinkPreview(Wrap(
+                                  alignment: WrapAlignment.end,
+                                  crossAxisAlignment: WrapCrossAlignment.end,
+                                  spacing: 10,
+                                  runSpacing: 2,
+                                  children: [
+                                    LinkText(
+                                      message.text,
+                                      style: text.bodyLarge.copyWith(
+                                        height: 1.4,
+                                        color: const Color(0xFF1B2030),
+                                      ),
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 2),
-                                    child: _buildMeta(
-                                      context,
-                                      color: metaColor,
-                                      seenColor: const Color(0xFF1D5FA8),
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 2),
+                                      child: _buildMeta(
+                                        context,
+                                        color: metaColor,
+                                        seenColor: const Color(0xFF1D5FA8),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                )),
                               ),
                             ),
-                          ),
-              ),
-              if (message.reactions.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                  child: ReactionChips(
-                    reactions: message.reactions,
-                    myId: myId,
-                    onTap: (reaction) => onReact?.call(reaction),
-                  ),
                 ),
-            ],
+                if (message.reactions.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+                    child: ReactionChips(
+                      reactions: message.reactions,
+                      myId: myId,
+                      onTap: (reaction) => onReact?.call(reaction),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Drag a message to the right to reply to it.
+class _SwipeToReply extends StatefulWidget {
+  const _SwipeToReply({required this.child, required this.onReply});
+
+  final Widget child;
+  final VoidCallback? onReply;
+
+  @override
+  State<_SwipeToReply> createState() => _SwipeToReplyState();
+}
+
+class _SwipeToReplyState extends State<_SwipeToReply>
+    with SingleTickerProviderStateMixin {
+  static const _trigger = 56.0;
+  static const _max = 80.0;
+
+  late final AnimationController _back = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+  )..addListener(() => setState(() => _offset = _backFrom * (1 - _back.value)));
+
+  double _offset = 0;
+  double _backFrom = 0;
+  bool _armed = false;
+
+  @override
+  void dispose() {
+    _back.dispose();
+    super.dispose();
+  }
+
+  void _update(DragUpdateDetails details) {
+    _back.stop();
+    // Resists more the further it goes.
+    final next = (_offset + details.delta.dx * (_offset > _trigger ? 0.4 : 1))
+        .clamp(0.0, _max);
+    final armed = next >= _trigger;
+    if (armed && !_armed) HapticFeedback.lightImpact();
+    setState(() {
+      _offset = next;
+      _armed = armed;
+    });
+  }
+
+  void _end([DragEndDetails? _]) {
+    if (_armed) widget.onReply?.call();
+    _armed = false;
+    _backFrom = _offset;
+    _back.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.onReply == null) return widget.child;
+    final progress = (_offset / _trigger).clamp(0.0, 1.0);
+    return GestureDetector(
+      onHorizontalDragUpdate: _update,
+      onHorizontalDragEnd: _end,
+      onHorizontalDragCancel: _end,
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          if (_offset > 0)
+            Positioned(
+              left: 4,
+              child: Opacity(
+                opacity: progress,
+                child: Transform.scale(
+                  scale: 0.6 + 0.4 * progress,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(_armed ? 40 : 20),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(AppIcons.reply, size: 16),
+                  ),
+                ),
+              ),
+            ),
+          Transform.translate(offset: Offset(_offset, 0), child: widget.child),
+        ],
       ),
     );
   }

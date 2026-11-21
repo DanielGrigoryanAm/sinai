@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/chat/draft_store.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -383,20 +384,48 @@ class _ChatRow extends StatelessWidget {
                                     color: colors.secondary,
                                   ),
                                 )
-                              : Text(
-                                  _preview(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: text.bodyLarge.copyWith(
-                                    fontSize: 15,
-                                    fontWeight: chat.hasUnread
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: chat.hasUnread
-                                        ? colors.textPrimary
-                                        : colors.textSecondary,
-                                  ),
-                                ),
+                              : ValueListenableBuilder<Map<String, String>>(
+                                  valueListenable: DraftStore.instance.drafts,
+                                  builder: (context, drafts, preview) {
+                                    final draft = drafts[chat.code]?.trim();
+                                    if (draft == null || draft.isEmpty) {
+                                      return preview!;
+                                    }
+                                    return Text.rich(
+                                      TextSpan(children: [
+                                        const TextSpan(
+                                          text: 'Draft: ',
+                                          style: TextStyle(
+                                            color: Color(0xFFDC2626),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: draft.replaceAll('\n', ' '),
+                                        ),
+                                      ]),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: text.bodyLarge.copyWith(
+                                        fontSize: 15,
+                                        color: colors.textSecondary,
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    _preview(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: text.bodyLarge.copyWith(
+                                      fontSize: 15,
+                                      fontWeight: chat.hasUnread
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: chat.hasUnread
+                                          ? colors.textPrimary
+                                          : colors.textSecondary,
+                                    ),
+                                  )),
                         ),
                         if (chat.hasUnread) ...[
                           const SizedBox(width: 12),

@@ -28,4 +28,8 @@ abstract final class AppIcons {
   static const pause = IconData(0xed86, fontFamily: 'UiconsRegular');
   static const download = IconData(0xe67e, fontFamily: 'UiconsRegular');
   static const lock = IconData(0xeb79, fontFamily: 'UiconsRegular');
+  static const forward = IconData(0xe0fe, fontFamily: 'UiconsThin');
+  static const arrowDown = IconData(0xe0d8, fontFamily: 'UiconsThin');
+  static const images = IconData(0xea38, fontFamily: 'UiconsThin');
+  static const link = IconData(0xeb4f, fontFamily: 'UiconsThin');
 }

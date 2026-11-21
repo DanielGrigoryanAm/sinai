@@ -26,6 +26,9 @@ class ChatMessage {
   /// The sender changed the text after sending.
   final bool isEdited;
 
+  /// Name of the original author when this message was forwarded.
+  final String? forwardedFrom;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -40,6 +43,7 @@ class ChatMessage {
     this.reactions = const {},
     this.replyTo,
     this.isEdited = false,
+    this.forwardedFrom,
   });
 
   bool get isVoice => audioUrl != null && audioUrl!.isNotEmpty;
@@ -48,7 +52,7 @@ class ChatMessage {
 
   /// Short text describing the message, for reply quotes.
   String get previewText {
-    if (isImage) return 'Photo';
+    if (isImage) return text.trim().isNotEmpty ? '📷 $text' : 'Photo';
     if (isVoice) return 'Voice message';
     return text;
   }

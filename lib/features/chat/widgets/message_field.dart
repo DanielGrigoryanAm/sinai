@@ -37,9 +37,9 @@ class MessageField extends StatefulWidget {
 }
 
 class _MessageFieldState extends State<MessageField> {
-  /// Photo the user picked but has not sent yet.
-  Uint8List? _pendingImage;
-  String _pendingImageType = 'image/jpeg';
+  /// Photos the user picked but has not sent yet.
+  final List<({Uint8List bytes, String type})> _pendingImages = [];
+  static const _maxImages = 10;
 
   final AudioRecorder _recorder = AudioRecorder();
   final Stopwatch _recordingTime = Stopwatch();
@@ -187,25 +187,28 @@ class _MessageFieldState extends State<MessageField> {
       return;
     }
 
-    final image = _pendingImage;
-    if (text.isEmpty && image == null) return;
+    final images = List.of(_pendingImages);
+    if (text.isEmpty && images.isEmpty) return;
 
     final reply = _takeReply();
 
-    if (image != null) {
-      bloc.add(
-        SendImageEvent(
-          chatCode: widget.chatCode,
-          bytes: image,
-          contentType: _pendingImageType,
-          // With text, the reply goes on the text message instead.
-          replyTo: text.isEmpty ? reply : null,
-        ),
-      );
-      setState(() => _pendingImage = null);
-    }
-
-    if (text.isNotEmpty) {
+    if (images.isNotEmpty) {
+      for (var i = 0; i < images.length; i++) {
+        final isLast = i == images.length - 1;
+        bloc.add(
+          SendImageEvent(
+            chatCode: widget.chatCode,
+            bytes: images[i].bytes,
+            contentType: images[i].type,
+            replyTo: i == 0 ? reply : null,
+            // The typed text becomes the caption of the last photo.
+            caption: isLast ? text : '',
+          ),
+        );
+      }
+      setState(_pendingImages.clear);
+      widget.chatController.clear();
+    } else if (text.isNotEmpty) {
       bloc.add(
         SendMessageEvent(
           chatCode: widget.chatCode,
@@ -257,22 +260,45 @@ class _MessageFieldState extends State<MessageField> {
     );
     if (source == null) return;
 
+    final room = _maxImages - _pendingImages.length;
+    if (room <= 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Up to 10 photos at a time')),
+      );
+      return;
+    }
+
     try {
       // Downscaled and re-encoded by the picker, so uploads stay small.
-      final picked = await ImagePicker().pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 80,
-      );
-      if (picked == null) return;
+      final picker = ImagePicker();
+      final List<XFile> picked = source == ImageSource.gallery
+          ? await picker.pickMultiImage(
+              maxWidth: 1600,
+              maxHeight: 1600,
+              imageQuality: 80,
+              limit: room > 1 ? room : null,
+            )
+          : [
+              if (await picker.pickImage(
+                source: source,
+                maxWidth: 1600,
+                maxHeight: 1600,
+                imageQuality: 80,
+              )
+                  case final XFile file)
+                file,
+            ];
+      if (picked.isEmpty) return;
 
-      final bytes = await picked.readAsBytes();
+      final added = <({Uint8List bytes, String type})>[];
+      for (final file in picked.take(room)) {
+        added.add((
+          bytes: await file.readAsBytes(),
+          type: file.mimeType ?? 'image/jpeg',
+        ));
+      }
       if (!mounted) return;
-      setState(() {
-        _pendingImage = bytes;
-        _pendingImageType = picked.mimeType ?? 'image/jpeg';
-      });
+      setState(() => _pendingImages.addAll(added));
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Could not open the photo')),
@@ -283,11 +309,10 @@ class _MessageFieldState extends State<MessageField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final pendingImage = _pendingImage;
     final replyTo = widget.composer.replyTo;
     final editing = widget.composer.editing;
     final canSend = editing != null ||
-        pendingImage != null ||
+        _pendingImages.isNotEmpty ||
         widget.chatController.text.trim().isNotEmpty;
 
     return Column(
@@ -308,12 +333,22 @@ class _MessageFieldState extends State<MessageField> {
             text: editing.text,
             onClose: _cancelEdit,
           ),
-        if (pendingImage != null && editing == null)
+        if (_pendingImages.isNotEmpty && editing == null)
           Padding(
-            padding: const EdgeInsets.only(left: 8, bottom: 10),
-            child: _PendingImagePreview(
-              bytes: pendingImage,
-              onRemove: () => setState(() => _pendingImage = null),
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SizedBox(
+              height: 84,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(left: 8),
+                itemCount: _pendingImages.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 4),
+                itemBuilder: (context, index) => _PendingImagePreview(
+                  bytes: _pendingImages[index].bytes,
+                  onRemove: () =>
+                      setState(() => _pendingImages.removeAt(index)),
+                ),
+              ),
             ),
           ),
         Container(
@@ -350,7 +385,9 @@ class _MessageFieldState extends State<MessageField> {
                       borderRadius: BorderRadius.circular(50),
                       borderSide: BorderSide.none,
                     ),
-                    hintText: 'Message...',
+                    hintText: _pendingImages.isNotEmpty && editing == null
+                        ? 'Add a caption...'
+                        : 'Message...',
                     hintStyle: context.textTheme.hintText.copyWith(
                       fontSize: 16,
                     ),
