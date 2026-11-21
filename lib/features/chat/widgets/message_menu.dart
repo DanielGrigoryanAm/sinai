@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:sinai/common/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -80,11 +81,11 @@ Future<MessageMenuResult?> showMessageMenu(
   final padding = MediaQuery.paddingOf(anchor);
 
   final actions = [
-    if (canReply) (MessageMenuAction.reply, 'Reply', Icons.reply, null),
-    if (canCopy) (MessageMenuAction.copy, 'Copy', Icons.copy_rounded, null),
-    if (canEdit) (MessageMenuAction.edit, 'Edit', Icons.edit_outlined, null),
+    if (canReply) (MessageMenuAction.reply, 'Reply', AppIcons.reply, null),
+    if (canCopy) (MessageMenuAction.copy, 'Copy', AppIcons.copy, null),
+    if (canEdit) (MessageMenuAction.edit, 'Edit', AppIcons.edit, null),
     if (canDelete)
-      (MessageMenuAction.delete, 'Delete', Icons.delete_outline, _deleteColor),
+      (MessageMenuAction.delete, 'Delete', AppIcons.trash, _deleteColor),
   ];
   final menuHeight = _reactionsRowHeight +
       (actions.isEmpty ? 0 : 1 + actions.length * _actionHeight) +
@@ -202,7 +203,7 @@ class _MenuCard extends StatelessWidget {
                         child: SizedBox.square(
                           dimension: 32,
                           child: Icon(
-                            Icons.add,
+                            AppIcons.add,
                             size: 20,
                             color: colors.textSecondary,
                             semanticLabel: 'More reactions',

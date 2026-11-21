@@ -9,6 +9,7 @@ import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/common/app_icons.dart';
 
 /// A single chat message: bubble with the time inside and, for other
 /// people's messages, the sender name above the first one of a run.
@@ -236,7 +237,7 @@ class MessageBubble extends StatelessWidget {
                 ),
                 errorWidget: (context, url, error) => Center(
                   child: Icon(
-                    Icons.broken_image_outlined,
+                    AppIcons.brokenImage,
                     color: colors.textSecondary,
                     size: 32,
                   ),
@@ -772,13 +773,25 @@ class _VoiceBubble extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () => _toggle(context),
-                  child: Padding(
-                    padding: const EdgeInsets.all(9),
-                    child: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 24,
-                      semanticLabel: isPlaying ? 'Pause' : 'Play',
+                  child: SizedBox(
+                    width: 42,
+                    height: 42,
+                    child: Center(
+                      child: isCurrent && playback.isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isPlaying ? AppIcons.pause : AppIcons.play,
+                              color: Colors.white,
+                              size: 18,
+                              semanticLabel: isPlaying ? 'Pause' : 'Play',
+                            ),
                     ),
                   ),
                 ),

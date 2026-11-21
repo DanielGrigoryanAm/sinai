@@ -11,6 +11,7 @@ import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/common/app_icons.dart';
 
 @RoutePage()
 class ProfileScreen extends StatelessWidget {
@@ -198,7 +199,7 @@ class _PhoneSection extends StatelessWidget {
       child: number != null
           ? Row(
               children: [
-                Icon(Icons.verified_user_outlined, color: colors.secondary),
+                Icon(AppIcons.shieldCheck, color: colors.secondary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -228,7 +229,7 @@ class _PhoneSection extends StatelessWidget {
                 const SizedBox(height: 12),
                 CustomButton.outline(
                   text: 'Add phone number',
-                  leadingIcon: Icons.phone_outlined,
+                  leadingIcon: AppIcons.phone,
                   onTap: onAdd,
                 ),
               ],

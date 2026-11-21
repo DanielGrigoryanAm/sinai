@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
@@ -11,6 +12,7 @@ import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/common/app_icons.dart';
 
 @RoutePage()
 class ChatsScreen extends StatefulWidget {
@@ -127,7 +129,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             clipBehavior: Clip.antiAlias,
                             child: IconButton(
                               tooltip: 'Profile',
-                              icon: const Icon(Icons.person_outline),
+                              icon: const Icon(AppIcons.user),
                               onPressed: () =>
                                   context.router.push(const ProfileRoute()),
                             ),
@@ -159,7 +161,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   foregroundColor: Colors.white,
                   elevation: 4,
                   shape: const CircleBorder(),
-                  child: const Icon(Icons.add, size: 32),
+                  child: const Icon(AppIcons.add, size: 32),
                 ),
               ),
             ),
@@ -226,7 +228,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                   },
                   backgroundColor: const Color(0xFFDC2626),
                   foregroundColor: Colors.white,
-                  icon: chat.isOwner ? Icons.delete_outline : Icons.logout,
+                  icon: chat.isOwner ? AppIcons.trash : AppIcons.logout,
                 ),
               ],
             ),
@@ -276,7 +278,7 @@ class _SearchField extends StatelessWidget {
           hintStyle: context.textTheme.bodyLarge.copyWith(
             color: colors.textSecondary,
           ),
-          prefixIcon: Icon(Icons.search, color: colors.textSecondary),
+          prefixIcon: Icon(AppIcons.search, color: colors.textSecondary),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -335,7 +337,7 @@ class _ChatRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           child: Row(
             children: [
-              _ChatAvatar(title: chat.title),
+              ChatAvatar(title: chat.title, photoUrl: chat.photoUrl),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -407,46 +409,6 @@ class _ChatRow extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Circle with the first letter of the chat name.
-class _ChatAvatar extends StatelessWidget {
-  const _ChatAvatar({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final trimmed = title.trim();
-    final initial =
-        trimmed.isEmpty ? '#' : trimmed.characters.first.toUpperCase();
-
-    return Container(
-      width: 56,
-      height: 56,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0xFFECEDF2),
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        initial,
-        style: context.textTheme.titleSmall.copyWith(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: const Color(0xFF6B7080),
         ),
       ),
     );

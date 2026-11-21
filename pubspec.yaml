@@ -32,6 +32,7 @@ dependencies:
   audioplayers: ^6.8.1
   path_provider: ^2.1.6
   firebase_database: ^12.6.1
+  flutter_cache_manager: ^3.5.0
 
 
 dev_dependencies:
@@ -54,6 +55,14 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+
+  fonts:
+    - family: UiconsThin
+      fonts:
+        - asset: assets/fonts/UiconsThin.ttf
+    - family: UiconsRegular
+      fonts:
+        - asset: assets/fonts/UiconsRegular.ttf
 
 flutter_gen:
   output: lib/gen/

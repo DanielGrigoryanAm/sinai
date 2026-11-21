@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
+import 'package:sinai/common/app_icons.dart';
 
 /// Full-screen picture with pinch-to-zoom and a button to save it to the
 /// device gallery.
@@ -63,7 +64,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
         elevation: 0,
         leading: IconButton(
           tooltip: 'Close',
-          icon: const Icon(Icons.close),
+          icon: const Icon(AppIcons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
@@ -83,7 +84,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
           else
             IconButton(
               tooltip: 'Save to gallery',
-              icon: const Icon(Icons.download_rounded),
+              icon: const Icon(AppIcons.download),
               onPressed: _saveToGallery,
             ),
           const SizedBox(width: 4),
@@ -103,7 +104,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
               child: CircularProgressIndicator(color: Colors.white),
             ),
             errorWidget: (context, url, error) => const Icon(
-              Icons.broken_image_outlined,
+              AppIcons.brokenImage,
               color: Colors.white54,
               size: 48,
             ),

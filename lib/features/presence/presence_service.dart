@@ -48,15 +48,30 @@ class PresenceService with WidgetsBindingObserver {
     return uid == null ? null : RealtimeDb.presence(uid);
   }
 
-  static final Map<String, Object> _online = {
-    'online': true,
-    'lastSeen': ServerValue.timestamp,
-  };
+  Map<String, Object> get _online => _state(online: true);
+  Map<String, Object> get _offline => _state(online: false);
 
-  static final Map<String, Object> _offline = {
-    'online': false,
-    'lastSeen': ServerValue.timestamp,
-  };
+  /// The user's name travels with their presence, so members of a chat can
+  /// list each other without access to private profiles.
+  Map<String, Object> _state({required bool online}) {
+    final name = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    return {
+      'online': online,
+      'lastSeen': ServerValue.timestamp,
+      if (name != null && name.isNotEmpty) 'name': name,
+    };
+  }
+
+  /// Publishes a changed name right away.
+  Future<void> refreshName() async {
+    final name = FirebaseAuth.instance.currentUser?.displayName?.trim();
+    if (name == null || name.isEmpty) return;
+    try {
+      await _ref?.update({'name': name});
+    } catch (e) {
+      debugPrint('Publishing the name failed: $e');
+    }
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -82,12 +97,17 @@ class PresenceService with WidgetsBindingObserver {
 
 /// Another user's presence as read from `presence/{uid}`.
 class Presence {
-  const Presence({required this.online, required this.lastSeen});
+  const Presence({
+    required this.online,
+    required this.lastSeen,
+    this.name,
+  });
 
   factory Presence.fromValue(Object? value) {
     if (value is! Map) return const Presence(online: false, lastSeen: null);
     final millis = value['lastSeen'];
     return Presence(
+      name: value['name'] as String?,
       online: value['online'] == true,
       lastSeen:
           millis is int ? DateTime.fromMillisecondsSinceEpoch(millis) : null,
@@ -96,4 +116,7 @@ class Presence {
 
   final bool online;
   final DateTime? lastSeen;
+
+  /// Null for users of app versions from before names were published.
+  final String? name;
 }

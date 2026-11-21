@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 /// What the shared voice player is doing right now.
 @immutable
@@ -9,6 +10,7 @@ class VoicePlayback {
   const VoicePlayback({
     this.url,
     this.isPlaying = false,
+    this.isLoading = false,
     this.position = Duration.zero,
     this.duration = Duration.zero,
   });
@@ -16,6 +18,9 @@ class VoicePlayback {
   /// Voice message currently loaded, or null when idle.
   final String? url;
   final bool isPlaying;
+
+  /// Downloading the file before playback starts.
+  final bool isLoading;
   final Duration position;
   final Duration duration;
 }
@@ -31,6 +36,7 @@ class VoicePlayer {
       _update(duration: duration);
     });
     _player.onPlayerStateChanged.listen((state) {
+      if (playback.value.isLoading) return;
       _update(isPlaying: state == PlayerState.playing);
     });
     _player.onPlayerComplete.listen((_) {
@@ -51,6 +57,7 @@ class VoicePlayer {
     playback.value = VoicePlayback(
       url: current.url,
       isPlaying: isPlaying ?? current.isPlaying,
+      isLoading: current.isLoading,
       position: position ?? current.position,
       duration: duration ?? current.duration,
     );
@@ -61,6 +68,7 @@ class VoicePlayer {
     final current = playback.value;
 
     try {
+      if (current.url == url && current.isLoading) return;
       if (current.url == url) {
         if (current.isPlaying) {
           await _player.pause();
@@ -71,8 +79,14 @@ class VoicePlayer {
       }
 
       await _player.stop();
-      playback.value = VoicePlayback(url: url);
-      await _player.play(UrlSource(url));
+      playback.value = VoicePlayback(url: url, isLoading: true);
+      // Download fully first (cached for replays) so playback starts at
+      // the very beginning instead of skipping while it streams.
+      final file = await DefaultCacheManager().getSingleFile(url);
+      // Another message may have been tapped meanwhile.
+      if (playback.value.url != url) return;
+      playback.value = VoicePlayback(url: url, isPlaying: true);
+      await _player.play(DeviceFileSource(file.path));
     } catch (_) {
       playback.value = const VoicePlayback();
       rethrow;

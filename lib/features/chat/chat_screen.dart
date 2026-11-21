@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:sinai/common/app_icons.dart';
 
 import 'package:auto_route/auto_route.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -228,9 +230,23 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     context.read<ChatBloc>().add(DeleteChatEvent(widget.chatCode));
   }
 
+  /// Live chat name, so a rename shows up without reopening the chat.
+  String? _liveName;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _nameSub;
+
   @override
   void initState() {
     super.initState();
+    _nameSub = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatCode)
+        .snapshots()
+        .listen((doc) {
+      final name = (doc.data()?['name'] as String?)?.trim();
+      if (name != null && name.isNotEmpty && name != _liveName && mounted) {
+        setState(() => _liveName = name);
+      }
+    }, onError: (_) {});
     _messagesScrollController.addListener(_loadMoreWhenNearTop);
     QuickReactionsStore.instance.start();
     // Created now so typing is reported from the first keystroke.
@@ -257,6 +273,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
   @override
   void dispose() {
+    _nameSub?.cancel();
     VoicePlayer.instance.stop();
     // The menu lives in the app-wide overlay; don't leave it behind.
     closeMessageMenu();
@@ -281,7 +298,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       },
       child: Scaffold(
         appBar: CustomAppBar(
-          title: widget.chatName ?? 'Chat',
+          title: _liveName ?? widget.chatName ?? 'Chat',
           subtitle: ValueListenableBuilder<ChatStatus?>(
             valueListenable: _status.status,
             builder: (context, status, _) => AnimatedSwitcher(
@@ -309,12 +326,12 @@ class _ChatScreenViewState extends State<ChatScreenView> {
           actions: [
             IconButton(
               tooltip: 'Search messages',
-              icon: const Icon(Icons.search),
+              icon: const Icon(AppIcons.search),
               onPressed: _openSearch,
             ),
             IconButton(
               tooltip: 'Chat info',
-              icon: const Icon(Icons.more_vert),
+              icon: const Icon(AppIcons.more),
               onPressed: _openChatInfo,
             ),
           ],

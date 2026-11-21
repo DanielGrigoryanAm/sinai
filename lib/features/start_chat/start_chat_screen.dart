@@ -7,6 +7,7 @@ import 'package:sinai/common/custom_text_field.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/common/app_icons.dart';
 
 import 'bloc/chat_bloc.dart';
 
@@ -65,7 +66,7 @@ class _StartChatScreenState extends State<StartChatScreen> {
                   SizedBox(height: 20),
                   CustomButton.primary(
                     text: 'Join',
-                    trailingIcon: Icons.arrow_forward,
+                    trailingIcon: AppIcons.arrowRight,
                     onTap:
                         code.isNotEmpty ? () => _onJoin(context, code) : null,
                   ),
@@ -86,7 +87,7 @@ class _StartChatScreenState extends State<StartChatScreen> {
                   SizedBox(height: 30),
                   CustomButton.outline(
                     text: 'Create chat',
-                    leadingIcon: Icons.add,
+                    leadingIcon: AppIcons.add,
                     onTap: () => context.router.push(const CreateChatRoute()),
                   ),
                 ],

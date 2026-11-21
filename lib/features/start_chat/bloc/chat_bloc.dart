@@ -13,6 +13,7 @@ import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
+import 'package:sinai/features/presence/presence_service.dart';
 import 'package:sinai/features/presence/realtime_db.dart';
 
 part 'chat_event.dart';
@@ -67,6 +68,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
       await user.updateDisplayName(event.name);
       await OnboardingPrefs.setNameConfirmed();
+      await PresenceService.instance.refreshName();
       emit(UserNameSaved(event.name));
     } catch (e) {
       emit(ChatError('Failed to save user name'));
@@ -339,6 +341,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       lastActivityAt: lastAt ?? createdAt,
       hasUnread: hasUnread,
       typingName: _typingNames[doc.id],
+      photoUrl: data['photoUrl'] as String?,
       unreadCount: hasUnread ? _unreadCounts[doc.id] : 0,
     );
   }

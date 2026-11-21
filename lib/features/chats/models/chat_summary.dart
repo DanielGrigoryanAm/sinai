@@ -13,6 +13,7 @@ class ChatSummary extends Equatable {
     this.isOwner = false,
     this.typingName,
     this.unreadCount,
+    this.photoUrl,
   });
 
   final String code;
@@ -41,6 +42,9 @@ class ChatSummary extends Equatable {
   /// Messages after the user's last visit; null while still counting.
   final int? unreadCount;
 
+  /// Chat photo set by the owner; null shows the first letter instead.
+  final String? photoUrl;
+
   String get title => name ?? code;
 
   @override
@@ -55,5 +59,6 @@ class ChatSummary extends Equatable {
         isOwner,
         typingName,
         unreadCount,
+        photoUrl,
       ];
 }

@@ -6,6 +6,7 @@ import 'package:sinai/common/custom_button.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/common/app_icons.dart';
 
 @RoutePage()
 class ChatReadyScreen extends StatefulWidget {
@@ -79,7 +80,7 @@ class _ChatReadyScreenState extends State<ChatReadyScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.chat_bubble_outline_rounded,
+                            AppIcons.chat,
                             color: colors.secondary,
                             size: 28,
                           ),
@@ -146,7 +147,7 @@ class _ChatReadyScreenState extends State<ChatReadyScreen> {
                             Expanded(
                               child: _OutlineAction(
                                 icon:
-                                    _copied ? Icons.check : Icons.copy_rounded,
+                                    _copied ? AppIcons.check : AppIcons.copy,
                                 label: _copied ? 'Copied' : 'Copy',
                                 onTap: _copyCode,
                               ),
@@ -154,7 +155,7 @@ class _ChatReadyScreenState extends State<ChatReadyScreen> {
                             Expanded(
                               child: Builder(
                                 builder: (buttonContext) => _OutlineAction(
-                                  icon: Icons.share_outlined,
+                                  icon: AppIcons.share,
                                   label: 'Share',
                                   onTap: () => _shareCode(buttonContext),
                                 ),

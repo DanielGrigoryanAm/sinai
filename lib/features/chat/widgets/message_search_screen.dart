@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/common/app_icons.dart';
 
 /// Searches a chat's messages by text. Pops with the id of the tapped
 /// message, so the chat can scroll to it.
@@ -89,7 +90,7 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           if (_query.text.isNotEmpty)
             IconButton(
               tooltip: 'Clear',
-              icon: const Icon(Icons.close),
+              icon: const Icon(AppIcons.close),
               onPressed: () => setState(_query.clear),
             ),
         ],

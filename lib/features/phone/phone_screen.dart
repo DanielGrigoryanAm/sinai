@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:sinai/common/app_icons.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -223,7 +224,7 @@ class _PhoneScreenState extends State<PhoneScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.lock_outline,
+                    Icon(AppIcons.lock,
                         size: 16, color: colors.textSecondary),
                     const SizedBox(width: 6),
                     Expanded(

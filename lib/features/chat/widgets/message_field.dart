@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:sinai/common/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -240,12 +241,12 @@ class _MessageFieldState extends State<MessageField> {
           children: [
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
+              leading: const Icon(AppIcons.addImage),
               title: const Text('Choose from gallery'),
               onTap: () => Navigator.of(context).pop(ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
+              leading: const Icon(AppIcons.camera),
               title: const Text('Take a photo'),
               onTap: () => Navigator.of(context).pop(ImageSource.camera),
             ),
@@ -295,14 +296,14 @@ class _MessageFieldState extends State<MessageField> {
       children: [
         if (replyTo != null)
           _ComposerBar(
-            icon: Icons.reply_rounded,
+            icon: AppIcons.reply,
             title: 'Reply to ${replyTo.senderName}',
             text: replyTo.previewText,
             onClose: widget.composer.clear,
           ),
         if (editing != null)
           _ComposerBar(
-            icon: Icons.edit_outlined,
+            icon: AppIcons.edit,
             title: 'Edit message',
             text: editing.text,
             onClose: _cancelEdit,
@@ -466,7 +467,7 @@ class _ComposerBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Cancel',
-            icon: Icon(Icons.close, color: colors.textSecondary, size: 20),
+            icon: Icon(AppIcons.close, color: colors.textSecondary, size: 20),
             onPressed: onClose,
           ),
         ],
@@ -500,7 +501,7 @@ class _RecordingBar extends StatelessWidget {
           const SizedBox(width: 5),
           IconButton(
             tooltip: 'Cancel recording',
-            icon: Icon(Icons.delete_outline, color: colors.textSecondary),
+            icon: Icon(AppIcons.trash, color: colors.textSecondary),
             onPressed: onCancel,
           ),
           Container(
@@ -592,7 +593,7 @@ class _PendingImagePreview extends StatelessWidget {
                 child: const Padding(
                   padding: EdgeInsets.all(4),
                   child: Icon(
-                    Icons.close,
+                    AppIcons.close,
                     size: 14,
                     color: Colors.white,
                     semanticLabel: 'Remove photo',
