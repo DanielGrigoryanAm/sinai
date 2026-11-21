@@ -370,20 +370,31 @@ class _ChatRow extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            _preview(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: text.bodyLarge.copyWith(
-                              fontSize: 15,
-                              fontWeight: chat.hasUnread
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: chat.hasUnread
-                                  ? colors.textPrimary
-                                  : colors.textSecondary,
-                            ),
-                          ),
+                          child: chat.typingName != null
+                              ? Text(
+                                  '${chat.typingName} is typing…',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: text.bodyLarge.copyWith(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.secondary,
+                                  ),
+                                )
+                              : Text(
+                                  _preview(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: text.bodyLarge.copyWith(
+                                    fontSize: 15,
+                                    fontWeight: chat.hasUnread
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    color: chat.hasUnread
+                                        ? colors.textPrimary
+                                        : colors.textSecondary,
+                                  ),
+                                ),
                         ),
                         if (chat.hasUnread) ...[
                           const SizedBox(width: 12),

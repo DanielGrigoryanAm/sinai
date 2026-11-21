@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
+import 'package:sinai/features/presence/presence_service.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/text_theme.dart';
@@ -19,6 +20,8 @@ void main() async {
   if (FirebaseAuth.instance.currentUser == null) {
     await FirebaseAuth.instance.signInAnonymously();
   }
+
+  PresenceService.instance.start();
 
   final nameConfirmed = await OnboardingPrefs.isNameConfirmed();
   appRouter = AppRouter(showOnboarding: !nameConfirmed);

@@ -13,6 +13,7 @@ import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
+import 'package:sinai/features/presence/realtime_db.dart';
 
 part 'chat_event.dart';
 part 'chat_state.dart';
@@ -166,6 +167,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// One listener per chat for its latest message, keyed by chat document id.
   final Map<String, StreamSubscription> _lastMessageSubscriptions = {};
 
+  /// One Realtime Database listener per chat for who is typing in it.
+  final Map<String, StreamSubscription> _typingSubscriptions = {};
+
+  /// Name of someone else typing, by chat document id.
+  final Map<String, String> _typingNames = {};
+
   /// Latest message data per chat document id; a null value means the chat
   /// has no messages (or its preview could not be loaded).
   final Map<String, Map<String, dynamic>?> _lastMessages = {};
@@ -209,6 +216,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
     _lastMessageSubscriptions.clear();
     _lastMessages.clear();
+    for (final subscription in _typingSubscriptions.values) {
+      await subscription.cancel();
+    }
+    _typingSubscriptions.clear();
+    _typingNames.clear();
     _chatDocs = const [];
   }
 
@@ -224,11 +236,27 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       if (ids.contains(id)) continue;
       _lastMessageSubscriptions.remove(id)?.cancel();
       _lastMessages.remove(id);
+      _typingSubscriptions.remove(id)?.cancel();
+      _typingNames.remove(id);
     }
 
     for (final doc in event.docs) {
       final id = doc.id;
       if (_lastMessageSubscriptions.containsKey(id)) continue;
+
+      _typingSubscriptions[id] = RealtimeDb.typing(id).onValue.listen(
+        (event) {
+          final name = _typingNameIn(event.snapshot.value);
+          if (name == _typingNames[id]) return;
+          if (name == null) {
+            _typingNames.remove(id);
+          } else {
+            _typingNames[id] = name;
+          }
+          add(const _ChatsChangedInternal());
+        },
+        onError: (Object _) {},
+      );
 
       _lastMessageSubscriptions[id] = doc.reference
           .collection('messages')
@@ -302,7 +330,19 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       lastSenderName: last?['senderName'] as String?,
       lastActivityAt: lastAt ?? createdAt,
       hasUnread: hasUnread,
+      typingName: _typingNames[doc.id],
     );
+  }
+
+  /// Name of someone other than the user in a chat's typing marks.
+  String? _typingNameIn(Object? typing) {
+    if (typing is! Map) return null;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    for (final entry in typing.entries) {
+      if (entry.key == uid || entry.value is! Map) continue;
+      return ((entry.value as Map)['name'] as String?) ?? 'Someone';
+    }
+    return null;
   }
 
   /// Text shown for a message in the chats list; pictures have no text of

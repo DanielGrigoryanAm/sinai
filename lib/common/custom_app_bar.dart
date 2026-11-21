@@ -9,12 +9,16 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBackPressed;
   final List<Widget>? actions;
 
+  /// Small line under the title, e.g. "online" or "typing…".
+  final Widget? subtitle;
+
   const CustomAppBar({
     super.key,
     this.showBackButton = false,
     this.title,
     this.onBackPressed,
     this.actions,
+    this.subtitle,
   });
 
   @override
@@ -27,12 +31,27 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: onBackPressed ?? () => context.router.pop(),
             )
           : null,
-      title: title != null
-          ? Text(
-              title!,
-              style: context.textTheme.titleLarge,
-            )
-          : null,
+      title: title == null
+          ? null
+          : subtitle == null
+              ? Text(
+                  title!,
+                  style: context.textTheme.titleLarge,
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textTheme.titleLarge.copyWith(
+                        fontSize: 19,
+                      ),
+                    ),
+                    subtitle!,
+                  ],
+                ),
       centerTitle: true,
       actions: actions,
     );

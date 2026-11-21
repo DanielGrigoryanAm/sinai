@@ -7,7 +7,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/progressive_blur.dart';
+import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
+import 'package:sinai/features/chat/typing_reporter.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/composer_controller.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
@@ -61,6 +63,12 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   final ScrollController _messagesScrollController = ScrollController();
   final ComposerController _composer = ComposerController();
   final FocusNode _fieldFocus = FocusNode();
+  late final ChatStatusController _status =
+      ChatStatusController(widget.chatCode);
+  late final TypingReporter _typing = TypingReporter(
+    chatCode: widget.chatCode,
+    controller: chatController,
+  );
 
   /// Height of the input overlay at the bottom, measured after layout.
   double _inputHeight = 90;
@@ -214,6 +222,8 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     super.initState();
     _messagesScrollController.addListener(_loadMoreWhenNearTop);
     QuickReactionsStore.instance.start();
+    // Created now so typing is reported from the first keystroke.
+    _typing;
   }
 
   /// The list is reversed, so the end of the scroll extent is the oldest
@@ -239,6 +249,8 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     VoicePlayer.instance.stop();
     // The menu lives in the app-wide overlay; don't leave it behind.
     closeMessageMenu();
+    _typing.dispose();
+    _status.dispose();
     chatController.dispose();
     _composer.dispose();
     _highlightTimer?.cancel();
@@ -259,6 +271,28 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       child: Scaffold(
         appBar: CustomAppBar(
           title: widget.chatName ?? 'Chat',
+          subtitle: ValueListenableBuilder<ChatStatus?>(
+            valueListenable: _status.status,
+            builder: (context, status, _) => AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: status == null
+                  ? const SizedBox(key: ValueKey('none'), height: 16)
+                  : Text(
+                      status.text,
+                      key: ValueKey(status.text),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            status.active ? FontWeight.w600 : FontWeight.w400,
+                        color: status.active
+                            ? context.colorTheme.secondary
+                            : context.colorTheme.textSecondary,
+                      ),
+                    ),
+            ),
+          ),
           showBackButton: true,
           onBackPressed: _handleExitToChats,
           actions: [
