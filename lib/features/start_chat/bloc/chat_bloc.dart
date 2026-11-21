@@ -173,6 +173,11 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   /// Name of someone else typing, by chat document id.
   final Map<String, String> _typingNames = {};
 
+  /// Unread message count by chat document id, and what it was counted
+  /// for (last message and read mark), to count again only on change.
+  final Map<String, int> _unreadCounts = {};
+  final Map<String, String> _unreadCountedFor = {};
+
   /// Latest message data per chat document id; a null value means the chat
   /// has no messages (or its preview could not be loaded).
   final Map<String, Map<String, dynamic>?> _lastMessages = {};
@@ -221,6 +226,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     }
     _typingSubscriptions.clear();
     _typingNames.clear();
+    _unreadCounts.clear();
+    _unreadCountedFor.clear();
     _chatDocs = const [];
   }
 
@@ -320,6 +327,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final hasUnread = lastAt != null &&
         last?['senderId'] != uid &&
         (myReadAt == null || lastAt.isAfter(myReadAt));
+    _countUnread(doc, hasUnread: hasUnread, lastAt: lastAt, readAt: myReadAt);
 
     return ChatSummary(
       isOwner: uid != null && data['ownerId'] == uid,
@@ -331,7 +339,48 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       lastActivityAt: lastAt ?? createdAt,
       hasUnread: hasUnread,
       typingName: _typingNames[doc.id],
+      unreadCount: hasUnread ? _unreadCounts[doc.id] : 0,
     );
+  }
+
+  /// Counts messages newer than the user's read mark with a server-side
+  /// count query (one read per 1000 messages). Runs again only when the
+  /// chat's last message or read mark changes; the result arrives later
+  /// and refreshes the list.
+  void _countUnread(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    required bool hasUnread,
+    required DateTime? lastAt,
+    required DateTime? readAt,
+  }) {
+    final id = doc.id;
+    if (!hasUnread) {
+      _unreadCounts[id] = 0;
+      _unreadCountedFor.remove(id);
+      return;
+    }
+
+    final key = '${lastAt?.millisecondsSinceEpoch}|'
+        '${readAt?.millisecondsSinceEpoch}';
+    if (_unreadCountedFor[id] == key) return;
+    _unreadCountedFor[id] = key;
+
+    Query<Map<String, dynamic>> query = doc.reference.collection('messages');
+    if (readAt != null) {
+      query = query.where(
+        'createdAt',
+        isGreaterThan: Timestamp.fromDate(readAt),
+      );
+    }
+
+    query.count().get().then((result) {
+      // A newer count may have started meanwhile.
+      if (_unreadCountedFor[id] != key || isClosed) return;
+      _unreadCounts[id] = result.count ?? 0;
+      add(const _ChatsChangedInternal());
+    }).catchError((Object e) {
+      debugPrint('Counting unread messages failed: $e');
+    });
   }
 
   /// Name of someone other than the user in a chat's typing marks.
@@ -777,14 +826,15 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   }
 
   /// Records that the current user has read the open chat, once per new
-  /// incoming message.
+  /// last message.
   void _markChatRead() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     final chatCode = _openChatCode;
     if (uid == null || chatCode == null || _messages.isEmpty) return;
 
+    // Also after the user's own message, so it never counts as unread.
     final last = _messages.last;
-    if (last.senderId == uid || last.id == _lastMarkedMessageId) return;
+    if (last.id == _lastMarkedMessageId) return;
     _lastMarkedMessageId = last.id;
 
     _firestore

@@ -12,6 +12,7 @@ class ChatSummary extends Equatable {
     this.hasUnread = false,
     this.isOwner = false,
     this.typingName,
+    this.unreadCount,
   });
 
   final String code;
@@ -37,6 +38,9 @@ class ChatSummary extends Equatable {
   /// Someone else typing in the chat right now, by name.
   final String? typingName;
 
+  /// Messages after the user's last visit; null while still counting.
+  final int? unreadCount;
+
   String get title => name ?? code;
 
   @override
@@ -50,5 +54,6 @@ class ChatSummary extends Equatable {
         hasUnread,
         isOwner,
         typingName,
+        unreadCount,
       ];
 }

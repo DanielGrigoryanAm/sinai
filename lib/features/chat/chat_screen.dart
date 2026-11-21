@@ -16,6 +16,7 @@ import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
 import 'package:sinai/features/chat/widgets/message_bubble.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
 import 'package:sinai/features/chat/widgets/message_menu.dart';
+import 'package:sinai/features/chat/widgets/message_search_screen.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
@@ -162,6 +163,16 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     if (mounted) _showSnack('Could not find the original message');
   }
 
+  Future<void> _openSearch() async {
+    closeMessageMenu();
+    final messageId = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => MessageSearchScreen(chatCode: widget.chatCode),
+      ),
+    );
+    if (messageId != null && mounted) await _scrollToMessage(messageId);
+  }
+
   void _highlight(String messageId) {
     _highlightTimer?.cancel();
     setState(() => _highlightedId = messageId);
@@ -296,6 +307,11 @@ class _ChatScreenViewState extends State<ChatScreenView> {
           showBackButton: true,
           onBackPressed: _handleExitToChats,
           actions: [
+            IconButton(
+              tooltip: 'Search messages',
+              icon: const Icon(Icons.search),
+              onPressed: _openSearch,
+            ),
             IconButton(
               tooltip: 'Chat info',
               icon: const Icon(Icons.more_vert),

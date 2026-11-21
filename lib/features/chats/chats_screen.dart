@@ -398,17 +398,7 @@ class _ChatRow extends StatelessWidget {
                         ),
                         if (chat.hasUnread) ...[
                           const SizedBox(width: 12),
-                          Semantics(
-                            label: 'Unread messages',
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: colors.secondary,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
+                          _UnreadBadge(count: chat.unreadCount),
                         ],
                       ],
                     ),
@@ -505,6 +495,55 @@ class _EmptyState extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Number of unread messages in a gold pill; a dot while still counting.
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    final count = this.count;
+
+    if (count == null || count == 0) {
+      return Semantics(
+        label: 'Unread messages',
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: colors.secondary,
+            shape: BoxShape.circle,
+          ),
+        ),
+      );
+    }
+
+    return Semantics(
+      label: '$count unread messages',
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 22),
+        height: 22,
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.secondary,
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Text(
+          count > 99 ? '99+' : '$count',
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
