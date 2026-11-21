@@ -487,8 +487,9 @@ class _DoubleTapLike extends StatefulWidget {
   /// Opens the message menu; completes when it closes.
   final Future<void> Function(BuildContext bubbleContext)? onLongPress;
 
-  /// Dragging up or down while still holding swaps the menu for a small
-  /// strip of reactions; this gets the one in its middle on release.
+  /// Moving the finger while still holding swaps the menu for a small strip
+  /// of reactions, scrolled sideways; this gets the one in its middle on
+  /// release.
   final ValueChanged<String>? onScrubPick;
 
   /// The user's reaction on this message, where the strip starts.
@@ -527,6 +528,9 @@ class _DoubleTapLikeState extends State<_DoubleTapLike>
   static const _scrubThreshold = 14.0;
   static const _scrubStep = 38.0;
 
+  /// Finger x where the strip appeared; sideways travel counts from here.
+  double _scrubAnchorX = 0;
+
   bool _menuOpen = false;
   Offset? _pressStart;
   OverlayEntry? _scrubber;
@@ -553,14 +557,17 @@ class _DoubleTapLikeState extends State<_DoubleTapLike>
     final start = _pressStart;
     if (start == null || widget.onScrubPick == null) return;
 
-    final dy = details.globalPosition.dy - start.dy;
+    final finger = details.globalPosition;
     if (_scrubber == null) {
-      if (dy.abs() < _scrubThreshold) return;
-      _startScrubbing(details.globalPosition);
+      // Any direction starts the strip; after that only sideways counts.
+      if ((finger - start).distance < _scrubThreshold) return;
+      _scrubAnchorX = finger.dx;
+      _startScrubbing(finger);
     }
 
-    // Down moves to the next emoji, up to the previous one.
-    final travelled = dy - dy.sign * _scrubThreshold;
+    // Right moves to the next emoji, left to the previous one. There is
+    // room sideways for any message, unlike below the bottom one.
+    final travelled = finger.dx - _scrubAnchorX;
     final value = (_scrubStartIndex + travelled / _scrubStep)
         .clamp(0.0, (_scrubEmojis.length - 1).toDouble());
     _scrubPosition.value = value;
@@ -593,7 +600,11 @@ class _DoubleTapLikeState extends State<_DoubleTapLike>
         : Reactions.emojiOf(widget.currentReaction!);
     _scrubEmojis = QuickReactionsStore.instance.reactions.value;
     final startIndex = current == null ? -1 : _scrubEmojis.indexOf(current);
-    _scrubStartIndex = startIndex < 0 ? 0 : startIndex.toDouble();
+    // Without a reaction yet, start in the middle of the set, so either end
+    // is at most three steps away.
+    _scrubStartIndex = startIndex >= 0
+        ? startIndex.toDouble()
+        : (_scrubEmojis.length ~/ 2 - 1).toDouble();
     _scrubIndex = _scrubStartIndex.round();
     _scrubPosition.value = _scrubStartIndex;
 
