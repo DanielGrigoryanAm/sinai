@@ -257,6 +257,9 @@ class MessageBubble extends StatelessWidget {
                   // Cached on disk, so a photo is downloaded only once.
                   CachedNetworkImage(
                     imageUrl: imageUrl,
+                    // Decoded at bubble size, not the 1600px original.
+                    memCacheWidth:
+                        (240 * MediaQuery.devicePixelRatioOf(context)).round(),
                     fit: BoxFit.cover,
                     fadeInDuration: const Duration(milliseconds: 150),
                     placeholder: (context, url) => Center(

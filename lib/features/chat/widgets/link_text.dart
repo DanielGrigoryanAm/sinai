@@ -218,6 +218,9 @@ class LinkPreview extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       child: CachedNetworkImage(
                         imageUrl: meta.imageUrl!,
+                        memCacheWidth:
+                            (300 * MediaQuery.devicePixelRatioOf(context))
+                                .round(),
                         height: 140,
                         width: double.infinity,
                         fit: BoxFit.cover,

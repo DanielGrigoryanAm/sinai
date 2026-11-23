@@ -14,7 +14,9 @@ class ProgressiveBlur extends StatelessWidget {
     super.key,
     required this.color,
     this.maxSigma = 10,
-    this.steps = 12,
+    // Each band is a full-screen-pass blur every frame; few bands keep
+    // scrolling and the keyboard smooth on mid-range phones.
+    this.steps = 3,
   });
 
   final Color color;

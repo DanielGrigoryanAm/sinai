@@ -91,6 +91,9 @@ class _ChatMediaScreenState extends State<ChatMediaScreen> {
                     ),
                     child: CachedNetworkImage(
                       imageUrl: url,
+                      memCacheWidth:
+                          (140 * MediaQuery.devicePixelRatioOf(context))
+                              .round(),
                       fit: BoxFit.cover,
                       placeholder: (_, __) =>
                           ColoredBox(color: colors.backgroundSecondary),

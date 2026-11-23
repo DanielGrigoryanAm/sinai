@@ -54,6 +54,8 @@ class ChatAvatar extends StatelessWidget {
           : CachedNetworkImage(
               imageUrl: url,
               fit: BoxFit.cover,
+              memCacheWidth:
+                  (size * MediaQuery.devicePixelRatioOf(context)).round(),
               placeholder: (_, __) => letter,
               errorWidget: (_, __, ___) => letter,
             ),
