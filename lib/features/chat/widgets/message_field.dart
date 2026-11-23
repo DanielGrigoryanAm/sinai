@@ -374,6 +374,10 @@ class _MessageFieldState extends State<MessageField> {
                   controller: widget.chatController,
                   focusNode: widget.focusNode,
                   textInputAction: TextInputAction.send,
+                  // Long text wraps and the field grows, up to 6 lines;
+                  // beyond that it scrolls inside.
+                  minLines: 1,
+                  maxLines: 6,
                   textCapitalization: TextCapitalization.sentences,
                   // Handling the action here instead of onSubmitted keeps the
                   // keyboard open, so several messages can be sent in a row.
