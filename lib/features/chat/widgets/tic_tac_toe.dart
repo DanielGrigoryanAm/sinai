@@ -34,7 +34,7 @@ class TicTacToe {
 
   static TicTacToe? fromChat(Map<String, dynamic>? chat) {
     final game = chat?['game'];
-    if (game is! Map || game['type'] == 'chess') return null;
+    if (game is! Map || (game['type'] ?? 'ttt') != 'ttt') return null;
     final board = (game['board'] as List?)?.cast<String>();
     final x = game['x'] as String?;
     if (board == null || board.length != 9 || x == null) return null;
@@ -74,6 +74,10 @@ class TicTacToe {
 
   static Future<void> start(String chatCode) => _chat(chatCode).update({
         'game': {
+          // Who did what last, for the notification to the others.
+          'by': FirebaseAuth.instance.currentUser!.uid,
+          'event': 'start',
+          'at': FieldValue.serverTimestamp(),
           'type': 'ttt',
           'pick': 'ttt',
           'board': List.filled(9, ''),
@@ -86,12 +90,14 @@ class TicTacToe {
       });
 
   /// Puts the user's mark on [cell], if it's their turn and the cell is free.
-  static Future<void> move(String chatCode, int cell) {
+  /// Plays a move on [game], the position on screen. A plain write, not
+  /// a transaction: Firestore shows it at once and syncs in the background,
+  /// so the board doesn't wait for the network.
+  static Future<void> move(String chatCode, TicTacToe game, int cell) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final ref = _chat(chatCode);
-    return FirebaseFirestore.instance.runTransaction((tx) async {
-      final game = fromChat((await tx.get(ref)).data());
-      if (game == null || !game.isTurnOf(uid) || game.board[cell] != '') {
+    return Future(() async {
+      if (!game.isTurnOf(uid) || game.board[cell] != '') {
         return;
       }
       final mark = game.turn;
@@ -105,7 +111,10 @@ class TicTacToe {
           : board.every((c) => c != '')
               ? 'draw'
               : null;
-      tx.update(ref, {
+      await ref.update({
+        'game.by': uid,
+        'game.event': 'move',
+        'game.at': FieldValue.serverTimestamp(),
         'game.board': board,
         if (mark == 'o' && game.o == null) 'game.o': uid,
         'game.turn': mark == 'x' ? 'o' : 'x',
@@ -196,7 +205,8 @@ class TicTacToeBoard extends StatelessWidget {
                     right: i % 3 < 2,
                     bottom: i < 6,
                     onTap: game.isTurnOf(uid) && game.board[i] == ''
-                        ? () => TicTacToe.move(chatCode, i).catchError((_) {})
+                        ? () =>
+                            TicTacToe.move(chatCode, game, i).catchError((_) {})
                         : null,
                   ),
               ],

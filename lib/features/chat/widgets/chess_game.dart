@@ -63,6 +63,10 @@ class ChessGame {
 
   static Future<void> start(String chatCode) => _chat(chatCode).update({
         'game': {
+          // Who did what last, for the notification to the others.
+          'by': FirebaseAuth.instance.currentUser!.uid,
+          'event': 'start',
+          'at': FieldValue.serverTimestamp(),
           'type': 'chess',
           'pick': 'chess',
           'fen': ch.Chess().fen,
@@ -74,12 +78,15 @@ class ChessGame {
         },
       });
 
-  static Future<void> move(String chatCode, String from, String to) {
+  /// Plays a move on [game], the position on screen. A plain write, not
+  /// a transaction: Firestore shows it at once and syncs in the background,
+  /// so the board doesn't wait for the network.
+  static Future<void> move(
+      String chatCode, ChessGame game, String from, String to) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final ref = _chat(chatCode);
-    return FirebaseFirestore.instance.runTransaction((tx) async {
-      final game = fromChat((await tx.get(ref)).data());
-      if (game == null || !game.isTurnOf(uid)) return;
+    return Future(() async {
+      if (!game.isTurnOf(uid)) return;
       final chess = ch.Chess.fromFEN(game.fen);
       final mover = game.turn;
       if (!chess.move({'from': from, 'to': to, 'promotion': 'q'})) return;
@@ -88,7 +95,10 @@ class ChessGame {
           : chess.in_draw || chess.in_stalemate
               ? 'draw'
               : null;
-      tx.update(ref, {
+      await ref.update({
+        'game.by': uid,
+        'game.event': 'move',
+        'game.at': FieldValue.serverTimestamp(),
         'game.fen': chess.fen,
         if (mover == 'b' && game.black == null) 'game.black': uid,
         'game.from': from,
@@ -138,7 +148,8 @@ class _ChessBoardViewState extends State<ChessBoardView> {
   void _tap(String square, ch.Chess chess, String uid) {
     final game = widget.game;
     if (_selected != null && _targets.contains(square)) {
-      ChessGame.move(widget.chatCode, _selected!, square).catchError((_) {});
+      ChessGame.move(widget.chatCode, widget.game, _selected!, square)
+          .catchError((_) {});
       setState(() {
         _selected = null;
         _targets = const {};

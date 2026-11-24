@@ -125,7 +125,7 @@ class _ChatHeaderState extends State<ChatHeader> {
           maxHeight: double.infinity,
           child: _Notch(
             narrowWidth: width - 2 * (_EdgeTab._width + 6),
-            wide: ChatGames.shown(_chat) == ChatGameType.chess,
+            wide: ChatGames.shown(_chat).isWide,
             top: 0,
             onTap: onInfo,
             board: (armed) => ChatGames(

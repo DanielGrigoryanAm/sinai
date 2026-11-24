@@ -51,8 +51,11 @@ class MiniGamesScreen extends StatelessWidget {
                 _GameChoice(
                   type: type,
                   selected: type == picked,
-                  onTap: () =>
-                      ChatGameType.pick(chatCode, type).catchError((_) {}),
+                  onTap: () => ChatGameType.pick(
+                    chatCode,
+                    snapshot.data?.data(),
+                    type,
+                  ).catchError((_) {}),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -78,7 +81,6 @@ class _GameChoice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final chess = type == ChatGameType.chess;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -103,9 +105,13 @@ class _GameChoice extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Text(
-                chess ? '♞︎' : '✕◯',
+                switch (type) {
+                  ChatGameType.chess => '\u265E\uFE0E',
+                  ChatGameType.checkers => '\u26C2\uFE0E',
+                  ChatGameType.ticTacToe => '✕◯',
+                },
                 style: TextStyle(
-                  fontSize: chess ? 30 : 18,
+                  fontSize: type == ChatGameType.ticTacToe ? 18 : 30,
                   color: colors.textPrimary,
                 ),
               ),
@@ -123,9 +129,13 @@ class _GameChoice extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    chess
-                        ? 'The full game. The board fills the notch.'
-                        : 'Quick game on a 3×3 board.',
+                    switch (type) {
+                      ChatGameType.chess =>
+                        'The full game. The board fills the notch.',
+                      ChatGameType.checkers =>
+                        'Russian rules: taking is a must, kings fly.',
+                      ChatGameType.ticTacToe => 'Quick game on a 3×3 board.',
+                    },
                     style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                 ],

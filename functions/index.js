@@ -248,3 +248,79 @@ exports.notifyReaction = onDocumentUpdated(
       }
     },
 );
+
+const GAME_NAMES = {ttt: 'tic-tac-toe', chess: 'chess', checkers: 'checkers'};
+
+/** 'w', 'b', 'x' or 'o': the side to move in [game]. */
+function sideToMove(game) {
+  if (game.type === 'chess') return String(game.fen || '').split(' ')[1];
+  return game.turn;
+}
+
+/** The player of [side] in [game], or null while nobody has taken it. */
+function playerOf(game, side) {
+  if (side === 'w') return game.white || null;
+  if (side === 'b') return game.black || null;
+  if (side === 'x') return game.x || null;
+  if (side === 'o') return game.o || null;
+  return null;
+}
+
+/**
+ * Tells the other members when someone starts a mini game in the chat,
+ * and the next player when it's their turn. Finished games tell everyone
+ * how they ended.
+ */
+exports.notifyGame = onDocumentUpdated(
+    'chats/{chatId}',
+    async (event) => {
+      const before = event.data?.before.data()?.game || {};
+      const after = event.data?.after.data()?.game;
+      if (!after || !after.by || !after.at) return;
+      // Only writes that start a game or make a move carry a new time.
+      if (before.at && after.at.isEqual?.(before.at)) return;
+
+      const {chatId} = event.params;
+      const chat = event.data.after.data();
+      const chatName = (chat.name || '').trim();
+      const others = (chat.participantIds || [])
+          .filter((uid) => uid !== after.by);
+      if (others.length === 0) return;
+
+      let actorName = 'Someone';
+      try {
+        const user = await getAuth().getUser(after.by);
+        actorName = (user.displayName || '').trim() || actorName;
+      } catch (_) {
+        // An unknown player still gets a notification.
+      }
+      const gameName = GAME_NAMES[after.type || 'ttt'] || 'a game';
+
+      let recipients = others;
+      let body;
+      if (after.event === 'start') {
+        body = `${actorName} invites you to play ${gameName}`;
+      } else {
+        const result = after.result ?? after.winner;
+        if (result === 'draw') {
+          body = `Your ${gameName} game with ${actorName} ended in a draw`;
+        } else if (result) {
+          body = `${actorName} won the ${gameName} game`;
+        } else {
+          // The player to move, or everyone while that side is still free.
+          const next = playerOf(after, sideToMove(after));
+          if (next) recipients = [next].filter((uid) => uid !== after.by);
+          body = `${actorName} made a move in ${gameName}. Your turn!`;
+        }
+      }
+      if (recipients.length === 0) return;
+
+      await sendToUsers(recipients, {
+        title: chatName || actorName,
+        body,
+        data: {chatCode: chatId, chatName},
+        // One game notification per chat, replaced by the next one.
+        tag: `game-${chatId}`,
+      });
+    },
+);

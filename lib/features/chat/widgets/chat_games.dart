@@ -1,13 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/chat/widgets/checkers_game.dart';
 import 'package:sinai/features/chat/widgets/chess_game.dart';
 import 'package:sinai/features/chat/widgets/tic_tac_toe.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 enum ChatGameType {
   ticTacToe('ttt', 'Tic-tac-toe'),
-  chess('chess', 'Chess');
+  chess('chess', 'Chess'),
+  checkers('checkers', 'Checkers');
+
+  /// Played on a full 8×8 board, which needs the notch's whole width.
+  bool get isWide => this != ticTacToe;
 
   const ChatGameType(this.id, this.label);
 
@@ -23,12 +28,25 @@ enum ChatGameType {
   }
 
   /// Sets the game the notch starts for everyone in the chat. Kept inside
-  /// the game field, which every member may change.
-  static Future<void> pick(String chatCode, ChatGameType type) =>
-      FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatCode)
-          .update({'game.pick': type.id});
+  /// the game field, which every member may change. A game of another kind
+  /// still on the board is put away, so the notch shows the new pick.
+  static Future<void> pick(
+    String chatCode,
+    Map<String, dynamic>? chat,
+    ChatGameType type,
+  ) {
+    final game = chat?['game'];
+    final current = game is Map
+        ? (game['type'] ?? (game['board'] == null ? null : 'ttt'))
+        : null;
+    return FirebaseFirestore.instance.collection('chats').doc(chatCode).update(
+          current == null || current == type.id
+              ? {'game.pick': type.id}
+              : {
+                  'game': {'pick': type.id},
+                },
+        );
+  }
 }
 
 /// The game shown in the pulled-down notch: the one being played, or a
@@ -57,6 +75,9 @@ class ChatGames extends StatelessWidget {
       return ChatGameType.ticTacToe;
     }
     if (ChessGame.fromChat(chat)?.isOver == false) return ChatGameType.chess;
+    if (CheckersGame.fromChat(chat)?.isOver == false) {
+      return ChatGameType.checkers;
+    }
     return null;
   }
 
@@ -69,14 +90,20 @@ class ChatGames extends StatelessWidget {
   static bool waitsOnMe(Map<String, dynamic>? chat) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     return (TicTacToe.fromChat(chat)?.isTurnOf(uid) ?? false) ||
-        (ChessGame.fromChat(chat)?.isTurnOf(uid) ?? false);
+        (ChessGame.fromChat(chat)?.isTurnOf(uid) ?? false) ||
+        (CheckersGame.fromChat(chat)?.isTurnOf(uid) ?? false);
   }
 
   /// Starts the game being played over again.
   static Future<void> restart(String chatCode, Map<String, dynamic>? chat) =>
-      (playing(chat) ?? ChatGameType.pickedIn(chat)) == ChatGameType.chess
-          ? ChessGame.start(chatCode)
-          : TicTacToe.start(chatCode);
+      _start(chatCode, playing(chat) ?? ChatGameType.pickedIn(chat));
+
+  static Future<void> _start(String chatCode, ChatGameType type) =>
+      switch (type) {
+        ChatGameType.ticTacToe => TicTacToe.start(chatCode),
+        ChatGameType.chess => ChessGame.start(chatCode),
+        ChatGameType.checkers => CheckersGame.start(chatCode),
+      };
 
   /// Ends the game without a result, keeping the pick.
   static Future<void> cancel(String chatCode, Map<String, dynamic>? chat) =>
@@ -86,9 +113,7 @@ class ChatGames extends StatelessWidget {
 
   /// Starts the picked game, keeping the pick.
   static Future<void> start(String chatCode, Map<String, dynamic>? chat) =>
-      ChatGameType.pickedIn(chat) == ChatGameType.chess
-          ? ChessGame.start(chatCode)
-          : TicTacToe.start(chatCode);
+      _start(chatCode, ChatGameType.pickedIn(chat));
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +121,7 @@ class ChatGames extends StatelessWidget {
     final playing = ChatGames.playing(chat);
     final ttt = TicTacToe.fromChat(chat);
     final chess = ChessGame.fromChat(chat);
+    final checkers = CheckersGame.fromChat(chat);
     final type = playing ?? ChatGameType.pickedIn(chat);
 
     // The finished game stays on screen above the picker, so the result
@@ -105,6 +131,15 @@ class ChatGames extends StatelessWidget {
       board = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 5),
         child: ChessBoardView(chatCode: chatCode, game: chess, size: chessSize),
+      );
+    } else if (type == ChatGameType.checkers && checkers != null) {
+      board = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        child: CheckersBoardView(
+          chatCode: chatCode,
+          game: checkers,
+          size: chessSize,
+        ),
       );
     } else if (type == ChatGameType.ticTacToe && ttt != null) {
       board = TicTacToeBoard(chatCode: chatCode, game: ttt);
