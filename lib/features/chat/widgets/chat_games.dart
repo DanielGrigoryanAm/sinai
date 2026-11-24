@@ -20,11 +20,11 @@ enum ChatGameType {
   final String label;
 
   /// The game a pull on the notch starts in [chat], the same for every
-  /// member. Chess unless someone picked otherwise.
+  /// member. Tic-tac-toe unless someone picked otherwise.
   static ChatGameType pickedIn(Map<String, dynamic>? chat) {
     final game = chat?['game'];
     final id = game is Map ? game['pick'] : null;
-    return values.firstWhere((t) => t.id == id, orElse: () => chess);
+    return values.firstWhere((t) => t.id == id, orElse: () => ticTacToe);
   }
 
   /// Sets the game the notch starts for everyone in the chat. Kept inside

@@ -81,6 +81,15 @@ class MessageBubble extends StatelessWidget {
   }
 
   Future<void> _openMenu(BuildContext bubbleContext) async {
+    // The menu would open under the keyboard: close it first and let the
+    // messages settle before measuring where the bubble is.
+    // Read from the window: the chat screen hides the keyboard inset
+    // from its contents.
+    if (View.of(bubbleContext).viewInsets.bottom > 0) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!bubbleContext.mounted) return;
+    }
     final canCopy = message.text.trim().isNotEmpty;
     final result = await showMessageMenu(
       bubbleContext,
