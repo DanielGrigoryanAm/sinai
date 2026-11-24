@@ -84,8 +84,8 @@ class _ChatHeaderState extends State<ChatHeader>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    colors.backgroundPrimary,
-                    colors.backgroundPrimary.withAlpha(235),
+                    colors.backgroundPrimary.withAlpha(190),
+                    colors.backgroundPrimary.withAlpha(120),
                     colors.backgroundPrimary.withAlpha(0),
                   ],
                   stops: const [0, 0.6, 1],
@@ -95,7 +95,13 @@ class _ChatHeaderState extends State<ChatHeader>
           ),
         ),
         Padding(
-          padding: EdgeInsets.only(top: top + 4),
+          // Raised so the tabs' bottom lines up with the notch's: the notch is
+          // 6 + 38.5 (title and status) + 10 tall below the status bar, a tab
+          // is curve + body tall.
+          padding: EdgeInsets.only(
+            top: (top + 54.5 - _EdgeTab._tabHeight - _EdgeTab._fillet)
+                .clamp(0, double.infinity),
+          ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

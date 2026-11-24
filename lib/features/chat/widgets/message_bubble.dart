@@ -32,7 +32,7 @@ class MessageBubble extends StatelessWidget {
 
   static const _myBubbleColor = Color(0xFF9CC4F0);
   static const _radius = Radius.circular(15);
-  static const _tailRadius = Radius.circular(6);
+  static const _tailRadius = Radius.zero;
 
   final ChatMessage message;
   final bool isMe;
@@ -423,74 +423,85 @@ class MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                _DoubleTapLike(
-                  // Messages still being sent have nothing to act on yet.
-                  onLongPress: message.createdAt == null ? null : _openMenu,
-                  onDoubleTap: onReact == null ? null : _like,
-                  onScrubPick: onReact == null || message.createdAt == null
-                      ? null
-                      : _pickFromScrubber,
-                  currentReaction: message.reactions[myId],
-                  child: message.isImage
-                      ? _buildImage(
-                          context,
-                          bubbleRadius,
-                          isMe ? _myBubbleColor : colors.backgroundSecondary,
-                          metaColor,
-                        )
-                      : message.isVoice
-                          ? _VoiceBubble(
-                              message: message,
-                              color: isMe
-                                  ? _myBubbleColor
-                                  : colors.backgroundSecondary,
-                              radius: bubbleRadius,
-                              accentColor: isMe
-                                  ? const Color(0xFF1D5FA8)
-                                  : colors.secondary,
-                              meta: _buildMeta(
-                                context,
-                                color: metaColor,
-                                seenColor: const Color(0xFF1D5FA8),
-                              ),
-                            )
-                          : Container(
-                              padding: const EdgeInsets.fromLTRB(16, 10, 12, 8),
-                              decoration: BoxDecoration(
+                _Ear(
+                  show: startsGroup,
+                  isMe: isMe,
+                  color: message.isImage
+                      ? colors.backgroundSecondary
+                      : isMe
+                          ? _myBubbleColor
+                          : colors.backgroundSecondary,
+                  child: _DoubleTapLike(
+                    // Messages still being sent have nothing to act on yet.
+                    onLongPress: message.createdAt == null ? null : _openMenu,
+                    onDoubleTap: onReact == null ? null : _like,
+                    onScrubPick: onReact == null || message.createdAt == null
+                        ? null
+                        : _pickFromScrubber,
+                    currentReaction: message.reactions[myId],
+                    child: message.isImage
+                        ? _buildImage(
+                            context,
+                            bubbleRadius,
+                            isMe ? _myBubbleColor : colors.backgroundSecondary,
+                            metaColor,
+                          )
+                        : message.isVoice
+                            ? _VoiceBubble(
+                                message: message,
                                 color: isMe
                                     ? _myBubbleColor
                                     : colors.backgroundSecondary,
-                                borderRadius: bubbleRadius,
-                                boxShadow: _shadow,
-                              ),
-                              // The time sits on the last line when it fits next to the
-                              // text and drops to its own line otherwise.
-                              child: _withQuote(
-                                _withLinkPreview(Wrap(
-                                  alignment: WrapAlignment.end,
-                                  crossAxisAlignment: WrapCrossAlignment.end,
-                                  spacing: 10,
-                                  runSpacing: 2,
-                                  children: [
-                                    LinkText(
-                                      message.text,
-                                      style: text.bodyLarge.copyWith(
-                                        height: 1.4,
-                                        color: const Color(0xFF1B2030),
+                                radius: bubbleRadius,
+                                accentColor: isMe
+                                    ? const Color(0xFF1D5FA8)
+                                    : colors.secondary,
+                                meta: _buildMeta(
+                                  context,
+                                  color: metaColor,
+                                  seenColor: const Color(0xFF1D5FA8),
+                                ),
+                              )
+                            : Container(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 10, 12, 8),
+                                decoration: BoxDecoration(
+                                  color: isMe
+                                      ? _myBubbleColor
+                                      : colors.backgroundSecondary,
+                                  borderRadius: bubbleRadius,
+                                  boxShadow: _shadow,
+                                ),
+                                // The time sits on the last line when it fits next to the
+                                // text and drops to its own line otherwise.
+                                child: _withQuote(
+                                  _withLinkPreview(Wrap(
+                                    alignment: WrapAlignment.end,
+                                    crossAxisAlignment: WrapCrossAlignment.end,
+                                    spacing: 10,
+                                    runSpacing: 2,
+                                    children: [
+                                      LinkText(
+                                        message.text,
+                                        style: text.bodyLarge.copyWith(
+                                          height: 1.4,
+                                          color: const Color(0xFF1B2030),
+                                        ),
                                       ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 2),
-                                      child: _buildMeta(
-                                        context,
-                                        color: metaColor,
-                                        seenColor: const Color(0xFF1D5FA8),
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 2),
+                                        child: _buildMeta(
+                                          context,
+                                          color: metaColor,
+                                          seenColor: const Color(0xFF1D5FA8),
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                )),
+                                    ],
+                                  )),
+                                ),
                               ),
-                            ),
+                  ),
                 ),
                 if (message.reactions.isNotEmpty)
                   Padding(
@@ -1076,4 +1087,71 @@ class MessageDatePill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A concave curve flowing the first bubble of a group out into the side
+/// it comes from, like the header's edge tabs.
+class _Ear extends StatelessWidget {
+  const _Ear({
+    required this.show,
+    required this.isMe,
+    required this.color,
+    required this.child,
+  });
+
+  static const size = 10.0;
+
+  final bool show;
+  final bool isMe;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!show) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        Positioned(
+          top: 0,
+          left: isMe ? null : -size,
+          right: isMe ? -size : null,
+          child: CustomPaint(
+            size: const Size.square(size),
+            painter: _EarPainter(color: color, isMe: isMe),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EarPainter extends CustomPainter {
+  const _EarPainter({required this.color, required this.isMe});
+
+  final Color color;
+  final bool isMe;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    // Drawn for the left side: filled between the top edge, the bubble's
+    // side and a curve bowing into the corner.
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(s, 0)
+      ..lineTo(s, s)
+      ..quadraticBezierTo(s, 0, 0, 0)
+      ..close();
+    if (isMe) {
+      canvas
+        ..translate(s, 0)
+        ..scale(-1, 1);
+    }
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_EarPainter old) => old.color != color || old.isMe != isMe;
 }
