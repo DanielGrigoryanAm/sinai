@@ -17,20 +17,78 @@ import 'package:sinai/common/app_icons.dart';
 
 /// Bottom sheet with the chat details. Resolves to `true` when the user
 /// chose to leave (or, for the owner, delete) the chat.
-Future<bool> showChatInfoSheet(BuildContext context, String chatCode) async {
-  final result = await showModalBottomSheet<bool>(
+Future<bool> showChatInfoSheet(
+  BuildContext context,
+  String chatCode, {
+  VoidCallback? onSearch,
+}) async {
+  final result = await showModalBottomSheet<Object>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => ChatInfoSheet(chatCode: chatCode),
+    builder: (_) =>
+        ChatInfoSheet(chatCode: chatCode, canSearch: onSearch != null),
   );
-  return result ?? false;
+  if (result == _searchResult) onSearch?.call();
+  return result == true;
+}
+
+const _searchResult = 'search';
+
+class _SheetRow extends StatelessWidget {
+  const _SheetRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    return Material(
+      color: colors.backgroundPrimary,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: colors.textPrimary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: context.textTheme.bodyLarge.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              Icon(AppIcons.arrowRight, size: 18, color: colors.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class ChatInfoSheet extends StatefulWidget {
-  const ChatInfoSheet({super.key, required this.chatCode});
+  const ChatInfoSheet({
+    super.key,
+    required this.chatCode,
+    this.canSearch = false,
+  });
 
   final String chatCode;
+
+  /// Shows a "Search messages" row; picking it closes the sheet.
+  final bool canSearch;
 
   @override
   State<ChatInfoSheet> createState() => _ChatInfoSheetState();
@@ -346,6 +404,14 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                         ],
                       ),
                     ),
+                    if (widget.canSearch) ...[
+                      const SizedBox(height: 12),
+                      _SheetRow(
+                        icon: AppIcons.search,
+                        label: 'Search messages',
+                        onTap: () => Navigator.of(context).pop(_searchResult),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Material(
                       color: colors.backgroundPrimary,

@@ -7,7 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/confirm_dialog.dart';
-import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/progressive_blur.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/chat/draft_store.dart';
@@ -16,6 +15,7 @@ import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/typing_reporter.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/composer_controller.dart';
+import 'package:sinai/features/chat/widgets/chat_header.dart';
 import 'package:sinai/features/chat/widgets/chat_info_sheet.dart';
 import 'package:sinai/features/chat/widgets/message_bubble.dart';
 import 'package:sinai/features/chat/widgets/message_field.dart';
@@ -227,13 +227,18 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   }
 
   Future<void> _openChatInfo() async {
-    final leave = await showChatInfoSheet(context, widget.chatCode);
+    final leave = await showChatInfoSheet(
+      context,
+      widget.chatCode,
+      onSearch: _openSearch,
+    );
     if (!leave || !mounted) return;
     context.read<ChatBloc>().add(DeleteChatEvent(widget.chatCode));
   }
 
   /// Live chat name, so a rename shows up without reopening the chat.
   String? _liveName;
+  String? _photoUrl;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _nameSub;
 
   @override
@@ -245,8 +250,14 @@ class _ChatScreenViewState extends State<ChatScreenView> {
         .snapshots()
         .listen((doc) {
       final name = (doc.data()?['name'] as String?)?.trim();
-      if (name != null && name.isNotEmpty && name != _liveName && mounted) {
-        setState(() => _liveName = name);
+      final photoUrl = doc.data()?['photoUrl'] as String?;
+      if (!mounted) return;
+      if ((name != null && name.isNotEmpty && name != _liveName) ||
+          photoUrl != _photoUrl) {
+        setState(() {
+          if (name != null && name.isNotEmpty) _liveName = name;
+          _photoUrl = photoUrl;
+        });
       }
     }, onError: (_) {});
     _messagesScrollController.addListener(_loadMoreWhenNearTop);
@@ -334,44 +345,13 @@ class _ChatScreenViewState extends State<ChatScreenView> {
         }
       },
       child: Scaffold(
-        appBar: CustomAppBar(
+        extendBodyBehindAppBar: true,
+        appBar: ChatHeader(
           title: _liveName ?? widget.chatName ?? 'Chat',
-          subtitle: ValueListenableBuilder<ChatStatus?>(
-            valueListenable: _status.status,
-            builder: (context, status, _) => AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: status == null
-                  ? const SizedBox(key: ValueKey('none'), height: 16)
-                  : Text(
-                      status.text,
-                      key: ValueKey(status.text),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight:
-                            status.active ? FontWeight.w600 : FontWeight.w400,
-                        color: status.active
-                            ? context.colorTheme.secondary
-                            : context.colorTheme.textSecondary,
-                      ),
-                    ),
-            ),
-          ),
-          showBackButton: true,
-          onBackPressed: _handleExitToChats,
-          actions: [
-            IconButton(
-              tooltip: 'Search messages',
-              icon: const Icon(AppIcons.search),
-              onPressed: _openSearch,
-            ),
-            IconButton(
-              tooltip: 'Chat info',
-              icon: const Icon(AppIcons.more),
-              onPressed: _openChatInfo,
-            ),
-          ],
+          status: _status.status,
+          onBack: _handleExitToChats,
+          onInfo: _openChatInfo,
+          onSearch: _openSearch,
         ),
         backgroundColor: context.colorTheme.backgroundPrimary,
         body: BlocListener<ChatBloc, ChatState>(
@@ -413,8 +393,16 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                         reverse: true,
                         // Room for the input overlay, so the newest message
                         // can scroll fully above it.
-                        padding:
-                            EdgeInsets.fromLTRB(16, 4, 16, _inputHeight + 12),
+                        // Room for the floating header and input, so the
+                        // oldest and newest messages scroll fully clear.
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          MediaQuery.paddingOf(context).top +
+                              ChatHeader.height +
+                              8,
+                          16,
+                          _inputHeight + 12,
+                        ),
                         itemCount:
                             messages.length + (state.isLoadingMore ? 1 : 0),
                         itemBuilder: (context, reversedIndex) {
@@ -544,9 +532,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                     clipBehavior: Clip.none,
                     children: [
                       Positioned.fill(
-                        // Starts a little above the input so the fade is
-                        // gradual rather than a hard line.
-                        top: -40,
+                        top: 15, // the field's top edge, past its padding
                         child: ProgressiveBlur(
                           color: context.colorTheme.backgroundPrimary,
                         ),
@@ -591,6 +577,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                             },
                           ),
                           SafeArea(
+                            top: false,
                             child: Padding(
                               padding: const EdgeInsets.all(15),
                               child: MessageField(
