@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 /// A chess game kept on the chat document. Whoever starts plays white; the
-/// first other member to move plays black. Pawns always promote to queens.
+/// first other member to move plays black.
 class ChessGame {
   const ChessGame({
     required this.fen,
@@ -82,14 +82,19 @@ class ChessGame {
   /// a transaction: Firestore shows it at once and syncs in the background,
   /// so the board doesn't wait for the network.
   static Future<void> move(
-      String chatCode, ChessGame game, String from, String to) {
+    String chatCode,
+    ChessGame game,
+    String from,
+    String to, [
+    String promotion = 'q',
+  ]) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
     final ref = _chat(chatCode);
     return Future(() async {
       if (!game.isTurnOf(uid)) return;
       final chess = ch.Chess.fromFEN(game.fen);
       final mover = game.turn;
-      if (!chess.move({'from': from, 'to': to, 'promotion': 'q'})) return;
+      if (!chess.move({'from': from, 'to': to, 'promotion': promotion})) return;
       final String? result = chess.in_checkmate
           ? mover
           : chess.in_draw || chess.in_stalemate
@@ -148,12 +153,12 @@ class _ChessBoardViewState extends State<ChessBoardView> {
   void _tap(String square, ch.Chess chess, String uid) {
     final game = widget.game;
     if (_selected != null && _targets.contains(square)) {
-      ChessGame.move(widget.chatCode, widget.game, _selected!, square)
-          .catchError((_) {});
+      final from = _selected!;
       setState(() {
         _selected = null;
         _targets = const {};
       });
+      _play(chess, from, square);
       return;
     }
     final piece = chess.get(square);
@@ -173,6 +178,24 @@ class _ChessBoardViewState extends State<ChessBoardView> {
         _targets = const {};
       });
     }
+  }
+
+  /// Plays [from]→[to], first asking which piece a pawn on the last rank
+  /// becomes.
+  Future<void> _play(ch.Chess chess, String from, String to) async {
+    final piece = chess.get(from);
+    final white = piece?.color == ch.Color.WHITE;
+    var promotion = 'q';
+    if (piece?.type == ch.PieceType.PAWN && to.endsWith(white ? '8' : '1')) {
+      final picked = await showDialog<String>(
+        context: context,
+        builder: (_) => _PromotionDialog(white: white),
+      );
+      if (picked == null || !mounted) return;
+      promotion = picked;
+    }
+    ChessGame.move(widget.chatCode, widget.game, from, to, promotion)
+        .catchError((_) {});
   }
 
   @override
@@ -301,22 +324,25 @@ class _Piece extends StatelessWidget {
   final ch.Piece piece;
   final double size;
 
-  // Solid shapes for both sides, coloured below; the selector keeps iOS
-  // from drawing the pawn as an emoji.
+  // Flaticon UIcons solid rounded, one glyph per piece.
   static const _glyphs = {
-    'k': '♚',
-    'q': '♛',
-    'r': '♜',
-    'b': '♝',
-    'n': '♞',
-    'p': '♟',
+    'k': 0xe3e8,
+    'q': 0xe3ef,
+    'r': 0xe3f1,
+    'b': 0xe3e4,
+    'n': 0xe3ea,
+    'p': 0xe3ec,
   };
 
   @override
   Widget build(BuildContext context) {
-    final glyph = '${_glyphs[piece.type.name]!}︎';
+    final glyph = String.fromCharCode(_glyphs[piece.type.name]!);
     final white = piece.color == ch.Color.WHITE;
-    final style = TextStyle(fontSize: size * 0.78, height: 1);
+    final style = TextStyle(
+      fontFamily: 'UiconsSolid',
+      fontSize: size * 0.55,
+      height: 1,
+    );
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -326,17 +352,83 @@ class _Piece extends StatelessWidget {
           style: style.copyWith(
             foreground: Paint()
               ..style = PaintingStyle.stroke
-              ..strokeWidth = size * 0.06
-              ..color = white ? const Color(0xFF3A2E24) : Colors.black,
+              ..strokeWidth = size * 0.07
+              ..strokeJoin = StrokeJoin.round
+              ..color =
+                  white ? const Color(0xFF3A2E24) : const Color(0xFF0F0C0A),
           ),
         ),
         Text(
           glyph,
           style: style.copyWith(
-            color: white ? Colors.white : const Color(0xFF1E1A17),
+            color: white ? Colors.white : const Color(0xFF2B2420),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Asks which piece a pawn reaching the last rank becomes.
+class _PromotionDialog extends StatelessWidget {
+  const _PromotionDialog({required this.white});
+
+  final bool white;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    return Dialog(
+      backgroundColor: colors.backgroundSecondary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Promote to',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                for (final type in const [
+                  ch.PieceType.QUEEN,
+                  ch.PieceType.ROOK,
+                  ch.PieceType.BISHOP,
+                  ch.PieceType.KNIGHT,
+                ])
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(type.name),
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0D9B5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: _Piece(
+                        piece: ch.Piece(
+                          type,
+                          white ? ch.Color.WHITE : ch.Color.BLACK,
+                        ),
+                        size: 56,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

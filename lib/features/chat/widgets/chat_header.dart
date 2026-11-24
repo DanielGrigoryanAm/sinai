@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
+import 'package:sinai/features/chat/widgets/notch_extras.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -141,6 +142,7 @@ class _ChatHeaderState extends State<ChatHeader> {
                 ChatGames.start(widget.chatCode, _chat).catchError((_) {});
               }
             },
+            status: status,
             waiting: ChatGames.waitsOnMe(_chat),
             playing: ChatGames.playing(_chat) != null,
             onRestart: () =>
@@ -239,11 +241,15 @@ class _Notch extends StatefulWidget {
     required this.wide,
     required this.board,
     required this.onPulled,
+    required this.status,
     required this.waiting,
     required this.playing,
     required this.onRestart,
     required this.onCancel,
   });
+
+  /// For the typing dots shown in the droplet.
+  final ValueListenable<ChatStatus?> status;
 
   /// A game is being played: pulling further offers to restart or cancel it.
   final bool playing;
@@ -573,6 +579,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
                             ),
                           ),
                         ),
+                        NotchExtras(status: widget.status, folded: open < 0.5),
                         // Overshoots up a little while wobbling back; never
                         // shrinks below its own size.
                         SizedBox(

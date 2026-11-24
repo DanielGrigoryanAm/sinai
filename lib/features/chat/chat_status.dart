@@ -11,9 +11,12 @@ import 'package:sinai/features/presence/realtime_db.dart';
 /// person is online, or how many members are online.
 @immutable
 class ChatStatus {
-  const ChatStatus(this.text, {this.active = false});
+  const ChatStatus(this.text, {this.active = false, this.typing = false});
 
   final String text;
+
+  /// Someone is typing.
+  final bool typing;
 
   /// Typing or online; shown in the accent color.
   final bool active;
@@ -133,11 +136,12 @@ class ChatStatusController {
       return ChatStatus(
         _others.length == 1 ? 'typing…' : '${typingNames.first} is typing…',
         active: true,
+        typing: true,
       );
     }
     if (typingNames.length > 1) {
       return ChatStatus('${typingNames.length} people are typing…',
-          active: true);
+          active: true, typing: true);
     }
 
     if (_others.isEmpty) return const ChatStatus('only you');
