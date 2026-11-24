@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -404,14 +405,16 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                         ],
                       ),
                     ),
-                    if (widget.canSearch) ...[
-                      const SizedBox(height: 12),
-                      _SheetRow(
-                        icon: AppIcons.search,
-                        label: 'Search messages',
-                        onTap: () => Navigator.of(context).pop(_searchResult),
+                    const SizedBox(height: 12),
+                    _SheetRow(
+                      icon: AppIcons.palette,
+                      label: 'App colors',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const AppColorsScreen(),
+                        ),
                       ),
-                    ],
+                    ),
                     const SizedBox(height: 12),
                     Material(
                       color: colors.backgroundPrimary,
@@ -474,8 +477,6 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                         ),
                     ],
                     const SizedBox(height: 16),
-                    Divider(height: 1, color: colors.border),
-                    const SizedBox(height: 24),
                     Material(
                       color: _dangerColor.withAlpha(18),
                       shape: RoundedRectangleBorder(

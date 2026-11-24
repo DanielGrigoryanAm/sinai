@@ -10,6 +10,7 @@ import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/theme/theme_store.dart';
 import 'package:sinai/common/app_icons.dart';
 
 /// A single chat message: bubble with the time inside and, for other
@@ -30,7 +31,7 @@ class MessageBubble extends StatelessWidget {
     this.onReplyTap,
   });
 
-  static const _myBubbleColor = Color(0xFF9CC4F0);
+  static Color get _myBubbleColor => ThemeStore.instance.value.myBubble;
   static const _radius = Radius.circular(15);
   static const _tailRadius = Radius.zero;
 
@@ -315,7 +316,7 @@ class MessageBubble extends StatelessWidget {
                         caption,
                         style: context.textTheme.bodyLarge.copyWith(
                           height: 1.4,
-                          color: const Color(0xFF1B2030),
+                          color: context.colorTheme.textPrimary,
                         ),
                       ),
                       Padding(
@@ -485,7 +486,7 @@ class MessageBubble extends StatelessWidget {
                                         message.text,
                                         style: text.bodyLarge.copyWith(
                                           height: 1.4,
-                                          color: const Color(0xFF1B2030),
+                                          color: context.colorTheme.textPrimary,
                                         ),
                                       ),
                                       Padding(

@@ -23,6 +23,7 @@ abstract final class AppIcons {
   static const arrowLeft = IconData(0xe0e6, fontFamily: 'UiconsThin');
   static const check = IconData(0xe3d7, fontFamily: 'UiconsRegular');
   static const search = IconData(0xf015, fontFamily: 'UiconsRegular');
+  static const palette = IconData(0xed5c, fontFamily: 'UiconsRegular');
   static const more = IconData(0xec0b, fontFamily: 'UiconsRegular');
   static const play = IconData(0xee6a, fontFamily: 'UiconsRegular');
   static const pause = IconData(0xed86, fontFamily: 'UiconsRegular');

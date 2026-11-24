@@ -6,7 +6,9 @@ import 'package:sinai/features/chat/draft_store.dart';
 import 'package:sinai/features/presence/presence_service.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
+import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/theme/text_theme.dart';
+import 'package:sinai/theme/theme_store.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
@@ -24,6 +26,7 @@ void main() async {
 
   PresenceService.instance.start();
   await DraftStore.instance.load();
+  await ThemeStore.instance.load();
 
   final nameConfirmed = await OnboardingPrefs.isNameConfirmed();
   appRouter = AppRouter(showOnboarding: !nameConfirmed);
@@ -40,16 +43,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      // The app only has a light design so far; a system dark theme would
-      // lack the typography extension every screen relies on.
-      themeMode: ThemeMode.light,
-      routerConfig: appRouter.config(),
-      theme: ThemeData(
-        textTheme: GoogleFonts.interTextTheme(),
-        extensions: <ThemeExtension<dynamic>>[
-          AppTypography.defaultTypography(),
-        ],
+    return ValueListenableBuilder<ColorTheme>(
+      valueListenable: ThemeStore.instance,
+      builder: (context, colors, _) => MaterialApp.router(
+        // The app only has a light design so far; a system dark theme would
+        // lack the typography extension every screen relies on.
+        themeMode: ThemeMode.light,
+        routerConfig: appRouter.config(),
+        theme: ThemeData(
+          textTheme: GoogleFonts.interTextTheme(),
+          extensions: <ThemeExtension<dynamic>>[
+            AppTypography.defaultTypography(),
+            AppColors(colors),
+          ],
+        ),
       ),
     );
   }
