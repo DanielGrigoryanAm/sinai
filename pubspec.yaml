@@ -36,6 +36,7 @@ dependencies:
   url_launcher: ^6.3.3
   http: ^1.6.0
   bloc_concurrency: ^0.3.0
+  chess: ^0.8.1
 
 
 dev_dependencies:

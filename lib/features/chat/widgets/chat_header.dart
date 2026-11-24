@@ -2,14 +2,13 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/chat_status.dart';
-import 'package:sinai/features/chat/widgets/tic_tac_toe.dart';
+import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -44,8 +43,9 @@ class ChatHeader extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _ChatHeaderState extends State<ChatHeader> {
-  /// The chat's tic-tac-toe game, if one was started.
-  TicTacToe? _game;
+  /// The chat document, which holds the game.
+  Map<String, dynamic>? _chat;
+
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _gameSub;
 
   @override
@@ -56,7 +56,7 @@ class _ChatHeaderState extends State<ChatHeader> {
         .doc(widget.chatCode)
         .snapshots()
         .listen((doc) {
-      if (mounted) setState(() => _game = TicTacToe.fromChat(doc.data()));
+      if (mounted) setState(() => _chat = doc.data());
     }, onError: (_) {});
   }
 
@@ -72,9 +72,24 @@ class _ChatHeaderState extends State<ChatHeader> {
   VoidCallback get onInfo => widget.onInfo;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: _build);
+
+  Widget _build(BuildContext context, BoxConstraints constraints) {
     final colors = context.colorTheme;
     final top = MediaQuery.paddingOf(context).top;
+    final width = MediaQuery.sizeOf(context).width;
+
+    // The board takes the notch's full width but leaves the lower half of
+    // the screen to the messages. The header spans the space above the
+    // keyboard, so the board shrinks while it's open.
+    final chessSize = math
+        .min(
+          // 5 of air on each side inside the notch's walls.
+          width - 2 * (_NotchShape.fillet + 5),
+          // Everything else in the notch: name, status and grabber.
+          constraints.maxHeight / 2 - top - 105,
+        )
+        .clamp(120.0, double.infinity);
 
     return Stack(
       // The fade reaches below the header; clipping would cut it as a line.
@@ -103,6 +118,77 @@ class _ChatHeaderState extends State<ChatHeader> {
             ),
           ),
         ),
+        // The name and status hang from the top edge like a notch.
+        // Not held to the header's height, so it can be pulled down.
+        OverflowBox(
+          alignment: Alignment.topCenter,
+          maxHeight: double.infinity,
+          child: _Notch(
+            narrowWidth: width - 2 * (_EdgeTab._width + 6),
+            wide: ChatGames.shown(_chat) == ChatGameType.chess,
+            top: 0,
+            onTap: onInfo,
+            board: (armed) => ChatGames(
+              chatCode: widget.chatCode,
+              chat: _chat,
+              armed: armed,
+              chessSize: chessSize,
+            ),
+            // Like pull to refresh: letting go past the mark starts a
+            // game, unless one is still being played.
+            onPulled: () {
+              if (ChatGames.playing(_chat) == null) {
+                ChatGames.start(widget.chatCode, _chat).catchError((_) {});
+              }
+            },
+            waiting: ChatGames.waitsOnMe(_chat),
+            playing: ChatGames.playing(_chat) != null,
+            onRestart: () =>
+                ChatGames.restart(widget.chatCode, _chat).catchError((_) {}),
+            onCancel: () =>
+                ChatGames.cancel(widget.chatCode, _chat).catchError((_) {}),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(18, top + 6, 18, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.textTheme.titleLarge.copyWith(
+                      fontSize: 18,
+                      height: 1.2,
+                    ),
+                  ),
+                  ValueListenableBuilder<ChatStatus?>(
+                    valueListenable: status,
+                    builder: (context, status, _) => AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Text(
+                        status?.text ?? '',
+                        key: ValueKey(status?.text),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.3,
+                          fontWeight: status?.active ?? false
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: status?.active ?? false
+                              ? colors.secondary
+                              : colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Above the notch, which spreads under them to fit the chess board.
         Padding(
           // Raised so the tabs' bottom lines up with the notch's: the notch is
           // 6 + 38.5 (title and status) + 10 + 11 (grabber) tall below the status bar, a tab
@@ -135,77 +221,6 @@ class _ChatHeaderState extends State<ChatHeader> {
             ],
           ),
         ),
-        // The name and status hang from the top edge like a notch.
-        // Not held to the header's height, so it can be pulled down.
-        OverflowBox(
-          alignment: Alignment.topCenter,
-          maxHeight: double.infinity,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth:
-                  MediaQuery.sizeOf(context).width - 2 * (_EdgeTab._width + 6),
-            ),
-            child: _Notch(
-              top: 0,
-              onTap: onInfo,
-              board: (armed) => TicTacToeBoard(
-                chatCode: widget.chatCode,
-                game: _game,
-                armed: armed,
-              ),
-              // Like pull to refresh: letting go past the mark starts a
-              // game, unless one is still being played.
-              onPulled: () {
-                if (_game == null || _game!.isOver) {
-                  TicTacToe.start(widget.chatCode).catchError((_) {});
-                }
-              },
-              waiting: _game?.isTurnOf(
-                    FirebaseAuth.instance.currentUser?.uid ?? '',
-                  ) ??
-                  false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(18, top + 6, 18, 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.textTheme.titleLarge.copyWith(
-                        fontSize: 18,
-                        height: 1.2,
-                      ),
-                    ),
-                    ValueListenableBuilder<ChatStatus?>(
-                      valueListenable: status,
-                      builder: (context, status, _) => AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Text(
-                          status?.text ?? '',
-                          key: ValueKey(status?.text),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.3,
-                            fontWeight: status?.active ?? false
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: status?.active ?? false
-                                ? colors.secondary
-                                : colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -220,10 +235,26 @@ class _Notch extends StatefulWidget {
     required this.child,
     required this.onTap,
     required this.top,
+    required this.narrowWidth,
+    required this.wide,
     required this.board,
     required this.onPulled,
     required this.waiting,
+    required this.playing,
+    required this.onRestart,
+    required this.onCancel,
   });
+
+  /// A game is being played: pulling further offers to restart or cancel it.
+  final bool playing;
+  final VoidCallback onRestart;
+  final VoidCallback onCancel;
+
+  /// Width the notch keeps to between the side tabs.
+  final double narrowWidth;
+
+  /// The board needs the full width: the notch spreads out while showing it.
+  final bool wide;
 
   /// Shown under the name while the notch is pulled far down; armed once
   /// it's pulled far enough that letting go starts a game.
@@ -307,6 +338,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
 
   bool _showBoard = false;
 
+  /// Restart and cancel buttons under a game being played.
+  bool _showActions = false;
+
   /// Vertical travel of the current drag.
   double _gestureDy = 0;
 
@@ -336,6 +370,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(_Notch oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.playing) _showActions = false;
     _syncHop();
   }
 
@@ -366,6 +401,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     _gestureDy += details.delta.dy;
     if (_showBoard && _gestureDy < -30) {
       _showBoard = false;
+      _showActions = false;
       _syncHop();
     }
     setState(() {
@@ -377,6 +413,8 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   void _release([DragEndDetails? details]) {
     _drag = 0;
     if (_pull > _boardPull) {
+      // Already playing: the further pull brings up the game's buttons.
+      if (_showBoard && widget.playing) _showActions = true;
       _showBoard = true;
       _syncHop();
       widget.onPulled();
@@ -400,6 +438,49 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     }
   }
 
+  void _restart() {
+    setState(() => _showActions = false);
+    widget.onRestart();
+  }
+
+  /// Ends the game and folds the board away, leaving the notch open.
+  void _cancel() {
+    setState(() {
+      _showActions = false;
+      _showBoard = false;
+    });
+    _settle(true);
+    _syncHop();
+    widget.onCancel();
+  }
+
+  Widget _actions() {
+    final colors = context.colorTheme;
+    Widget button(String label, IconData icon, VoidCallback onTap) =>
+        TextButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 16),
+          label: Text(label),
+          style: TextButton.styleFrom(
+            backgroundColor: colors.secondary.withAlpha(40),
+            foregroundColor: colors.textPrimary,
+            shape: const StadiumBorder(),
+            visualDensity: VisualDensity.compact,
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 10,
+        children: [
+          button('Restart', AppIcons.refresh, _restart),
+          button('Cancel', AppIcons.close, _cancel),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _hop.dispose();
@@ -413,79 +494,102 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     final shape = _NotchShape(widget.top);
     final open = _open.value;
     final top = MediaQuery.paddingOf(context).top;
-    return GestureDetector(
-      onVerticalDragStart: _start,
-      onVerticalDragUpdate: _update,
-      onVerticalDragEnd: _release,
-      onVerticalDragCancel: _release,
-      child: CustomPaint(
-        painter: _ShadowPainter(shape),
-        child: ClipPath(
-          clipper: shape,
-          child: Material(
-            color: Colors.white,
-            child: InkWell(
-              onTap: _tap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: _NotchShape.fillet,
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minWidth: _dropWidth,
-                    minHeight: top + _dropHeight,
+    final boardShown = _showBoard || _pull > _boardPeek;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth:
+            boardShown && widget.wide ? double.infinity : widget.narrowWidth,
+      ),
+      child: GestureDetector(
+        onVerticalDragStart: _start,
+        onVerticalDragUpdate: _update,
+        onVerticalDragEnd: _release,
+        onVerticalDragCancel: _release,
+        child: CustomPaint(
+          painter: _ShadowPainter(shape),
+          child: ClipPath(
+            clipper: shape,
+            child: Material(
+              color: Colors.white,
+              child: InkWell(
+                onTap: _tap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _NotchShape.fillet,
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      // The name and status grow out of the droplet.
-                      ClipRect(
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          widthFactor: open.clamp(0, 1.2),
-                          heightFactor: open.clamp(0, 1.2),
-                          child: Opacity(
-                            opacity: (open * open).clamp(0, 1),
-                            // Grows and shrinks smoothly as the status
-                            // text changes.
-                            child: AnimatedSize(
-                              duration: const Duration(milliseconds: 250),
-                              curve: Curves.easeOutCubic,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  widget.child,
-                                  if (_showBoard || _pull > _boardPeek)
-                                    // Taps on the game stay in the game instead of
-                                    // opening the chat info.
-                                    GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () {},
-                                      child: widget.board(_pull > _boardPull),
-                                    ),
-                                ],
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: _dropWidth,
+                      minHeight: top + _dropHeight,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // The name and status grow out of the droplet.
+                        ClipRect(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            widthFactor: open.clamp(0, 1.2),
+                            heightFactor: open.clamp(0, 1.2),
+                            child: Opacity(
+                              opacity: (open * open).clamp(0, 1),
+                              // Grows and shrinks smoothly as the status
+                              // text changes.
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 250),
+                                curve: Curves.easeOutCubic,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    widget.child,
+                                    if (boardShown)
+                                      // Taps on the game stay in the game instead of
+                                      // opening the chat info.
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        // Also closes the keyboard, letting
+                                        // the board grow back.
+                                        onTap: () => FocusManager
+                                            .instance.primaryFocus
+                                            ?.unfocus(),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            widget.board(_pull > _boardPull),
+                                            // Shown while pulling a game in
+                                            // play further, and kept after.
+                                            if (widget.playing &&
+                                                (_showActions ||
+                                                    (_showBoard &&
+                                                        _pull > _boardPeek)))
+                                              _actions(),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      // Overshoots up a little while wobbling back; never
-                      // shrinks below its own size.
-                      SizedBox(
-                        height: _pull.clamp(0, double.infinity) + _hopOffset,
-                      ),
-                      // A home-indicator bar hinting that it can be pulled.
-                      Container(
-                        width: 36,
-                        height: _grabber,
-                        decoration: BoxDecoration(
-                          color: Colors.black.withAlpha(45),
-                          borderRadius: BorderRadius.circular(2),
+                        // Overshoots up a little while wobbling back; never
+                        // shrinks below its own size.
+                        SizedBox(
+                          height: _pull.clamp(0, double.infinity) + _hopOffset,
                         ),
-                      ),
-                      const SizedBox(height: _grabberGap),
-                    ],
+                        // A home-indicator bar hinting that it can be pulled.
+                        Container(
+                          width: 36,
+                          height: _grabber,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withAlpha(45),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: _grabberGap),
+                      ],
+                    ),
                   ),
                 ),
               ),

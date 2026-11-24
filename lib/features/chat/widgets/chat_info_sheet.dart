@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/chat/widgets/mini_games_screen.dart';
 import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
@@ -407,6 +408,17 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                     ),
                     const SizedBox(height: 12),
                     _SheetRow(
+                      icon: AppIcons.game,
+                      label: 'Mini games',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              MiniGamesScreen(chatCode: widget.chatCode),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SheetRow(
                       icon: AppIcons.palette,
                       label: 'App colors',
                       onTap: () => Navigator.of(context).push(
@@ -690,3 +702,4 @@ class _MemberRow extends StatelessWidget {
     );
   }
 }
+

@@ -34,7 +34,7 @@ class TicTacToe {
 
   static TicTacToe? fromChat(Map<String, dynamic>? chat) {
     final game = chat?['game'];
-    if (game is! Map) return null;
+    if (game is! Map || game['type'] == 'chess') return null;
     final board = (game['board'] as List?)?.cast<String>();
     final x = game['x'] as String?;
     if (board == null || board.length != 9 || x == null) return null;
@@ -74,6 +74,8 @@ class TicTacToe {
 
   static Future<void> start(String chatCode) => _chat(chatCode).update({
         'game': {
+          'type': 'ttt',
+          'pick': 'ttt',
           'board': List.filled(9, ''),
           'x': FirebaseAuth.instance.currentUser!.uid,
           'o': null,
@@ -200,7 +202,6 @@ class TicTacToeBoard extends StatelessWidget {
               ],
             ),
           ),
-          if (game.isOver) ...[const SizedBox(height: 8), hint],
         ],
       ),
     );

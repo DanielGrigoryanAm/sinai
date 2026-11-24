@@ -363,137 +363,143 @@ class _ChatScreenViewState extends State<ChatScreenView> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: BlocBuilder<ChatBloc, ChatState>(
-                  builder: (context, state) {
-                    if (state is ChatLoading) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (state is MessagesLoaded) {
-                      if (state.messages.isEmpty) {
-                        return const Center(child: Text('No messages yet'));
+                // A tap on the messages closes the keyboard, giving the
+                // chess board its room back.
+                child: GestureDetector(
+                  onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                  child: BlocBuilder<ChatBloc, ChatState>(
+                    builder: (context, state) {
+                      if (state is ChatLoading) {
+                        return const Center(child: CircularProgressIndicator());
                       }
 
-                      final messages = state.messages;
-                      final myId = FirebaseAuth.instance.currentUser?.uid;
+                      if (state is MessagesLoaded) {
+                        if (state.messages.isEmpty) {
+                          return const Center(child: Text('No messages yet'));
+                        }
 
-                      // Reversed, so the newest message stays pinned to the
-                      // bottom and older pages load above without moving
-                      // what the user is looking at.
-                      return ListView.builder(
-                        controller: _messagesScrollController,
-                        reverse: true,
-                        // Room for the input overlay, so the newest message
-                        // can scroll fully above it.
-                        // Room for the floating header and input, so the
-                        // oldest and newest messages scroll fully clear.
-                        padding: EdgeInsets.fromLTRB(
-                          16,
-                          MediaQuery.paddingOf(context).top +
-                              ChatHeader.height +
-                              8,
-                          16,
-                          _inputHeight + 12,
-                        ),
-                        itemCount:
-                            messages.length + (state.isLoadingMore ? 1 : 0),
-                        itemBuilder: (context, reversedIndex) {
-                          if (reversedIndex == messages.length) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(
-                                child: SizedBox.square(
-                                  dimension: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
+                        final messages = state.messages;
+                        final myId = FirebaseAuth.instance.currentUser?.uid;
+
+                        // Reversed, so the newest message stays pinned to the
+                        // bottom and older pages load above without moving
+                        // what the user is looking at.
+                        return ListView.builder(
+                          controller: _messagesScrollController,
+                          reverse: true,
+                          // Room for the input overlay, so the newest message
+                          // can scroll fully above it.
+                          // Room for the floating header and input, so the
+                          // oldest and newest messages scroll fully clear.
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            MediaQuery.paddingOf(context).top +
+                                ChatHeader.height +
+                                8,
+                            16,
+                            _inputHeight + 12,
+                          ),
+                          itemCount:
+                              messages.length + (state.isLoadingMore ? 1 : 0),
+                          itemBuilder: (context, reversedIndex) {
+                            if (reversedIndex == messages.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: SizedBox.square(
+                                    dimension: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
                                   ),
                                 ),
+                              );
+                            }
+
+                            final index = messages.length - 1 - reversedIndex;
+                            final message = messages[index];
+                            final isMe = message.senderId == myId;
+                            final previous =
+                                index > 0 ? messages[index - 1] : null;
+                            final date = message.createdAt ?? DateTime.now();
+                            final previousDate = previous == null
+                                ? null
+                                : previous.createdAt ?? DateTime.now();
+                            final isNewDay = previousDate == null ||
+                                !DateUtils.isSameDay(previousDate, date);
+
+                            return AnimatedContainer(
+                              // A GlobalKey lets a reply quote find and scroll
+                              // to this message.
+                              key: _keyFor(message.id),
+                              duration: const Duration(milliseconds: 300),
+                              decoration: BoxDecoration(
+                                color: _highlightedId == message.id
+                                    ? context.colorTheme.secondary.withAlpha(45)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (isNewDay) MessageDatePill(date: date),
+                                  MessageBubble(
+                                    message: message,
+                                    isMe: isMe,
+                                    isSeen: isMe &&
+                                        message.createdAt != null &&
+                                        state.seenAt != null &&
+                                        !state.seenAt!
+                                            .isBefore(message.createdAt!),
+                                    startsGroup: isNewDay ||
+                                        previous?.senderId != message.senderId,
+                                    myId: myId,
+                                    // A message still being sent has no
+                                    // server copy to react to yet.
+                                    onReact: message.createdAt == null
+                                        ? null
+                                        : (reaction) =>
+                                            context.read<ChatBloc>().add(
+                                                  ToggleReactionEvent(
+                                                    chatCode: widget.chatCode,
+                                                    messageId: message.id,
+                                                    reaction: reaction,
+                                                  ),
+                                                ),
+                                    onReply: message.createdAt == null
+                                        ? null
+                                        : () => _reply(message),
+                                    // Only text can be edited; photos and voice
+                                    // messages are deleted and sent again.
+                                    onForward: message.createdAt == null
+                                        ? null
+                                        : () =>
+                                            forwardMessage(context, message),
+                                    onEdit: isMe &&
+                                            message.createdAt != null &&
+                                            !message.isImage &&
+                                            !message.isVoice
+                                        ? () => _edit(message)
+                                        : null,
+                                    onDelete: isMe && message.createdAt != null
+                                        ? () => _delete(message)
+                                        : null,
+                                    onReplyTap: message.replyTo == null
+                                        ? null
+                                        : () => _scrollToMessage(
+                                              message.replyTo!.messageId,
+                                            ),
+                                  ),
+                                ],
                               ),
                             );
-                          }
+                          },
+                        );
+                      }
 
-                          final index = messages.length - 1 - reversedIndex;
-                          final message = messages[index];
-                          final isMe = message.senderId == myId;
-                          final previous =
-                              index > 0 ? messages[index - 1] : null;
-                          final date = message.createdAt ?? DateTime.now();
-                          final previousDate = previous == null
-                              ? null
-                              : previous.createdAt ?? DateTime.now();
-                          final isNewDay = previousDate == null ||
-                              !DateUtils.isSameDay(previousDate, date);
-
-                          return AnimatedContainer(
-                            // A GlobalKey lets a reply quote find and scroll
-                            // to this message.
-                            key: _keyFor(message.id),
-                            duration: const Duration(milliseconds: 300),
-                            decoration: BoxDecoration(
-                              color: _highlightedId == message.id
-                                  ? context.colorTheme.secondary.withAlpha(45)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (isNewDay) MessageDatePill(date: date),
-                                MessageBubble(
-                                  message: message,
-                                  isMe: isMe,
-                                  isSeen: isMe &&
-                                      message.createdAt != null &&
-                                      state.seenAt != null &&
-                                      !state.seenAt!
-                                          .isBefore(message.createdAt!),
-                                  startsGroup: isNewDay ||
-                                      previous?.senderId != message.senderId,
-                                  myId: myId,
-                                  // A message still being sent has no
-                                  // server copy to react to yet.
-                                  onReact: message.createdAt == null
-                                      ? null
-                                      : (reaction) =>
-                                          context.read<ChatBloc>().add(
-                                                ToggleReactionEvent(
-                                                  chatCode: widget.chatCode,
-                                                  messageId: message.id,
-                                                  reaction: reaction,
-                                                ),
-                                              ),
-                                  onReply: message.createdAt == null
-                                      ? null
-                                      : () => _reply(message),
-                                  // Only text can be edited; photos and voice
-                                  // messages are deleted and sent again.
-                                  onForward: message.createdAt == null
-                                      ? null
-                                      : () => forwardMessage(context, message),
-                                  onEdit: isMe &&
-                                          message.createdAt != null &&
-                                          !message.isImage &&
-                                          !message.isVoice
-                                      ? () => _edit(message)
-                                      : null,
-                                  onDelete: isMe && message.createdAt != null
-                                      ? () => _delete(message)
-                                      : null,
-                                  onReplyTap: message.replyTo == null
-                                      ? null
-                                      : () => _scrollToMessage(
-                                            message.replyTo!.messageId,
-                                          ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    }
-
-                    return const SizedBox.shrink();
-                  },
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ),
               ),
               Positioned(
