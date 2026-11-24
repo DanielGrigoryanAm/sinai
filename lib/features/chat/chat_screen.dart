@@ -345,14 +345,6 @@ class _ChatScreenViewState extends State<ChatScreenView> {
         }
       },
       child: Scaffold(
-        extendBodyBehindAppBar: true,
-        appBar: ChatHeader(
-          title: _liveName ?? widget.chatName ?? 'Chat',
-          status: _status.status,
-          onBack: _handleExitToChats,
-          onInfo: _openChatInfo,
-          onSearch: _openSearch,
-        ),
         backgroundColor: context.colorTheme.backgroundPrimary,
         body: BlocListener<ChatBloc, ChatState>(
           listener: (context, state) {
@@ -598,6 +590,18 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                       ),
                     ],
                   ),
+                ),
+              ),
+              // Covers the whole screen so the notch can be touched even
+              // when pulled far down; empty parts let touches through.
+              Positioned.fill(
+                child: ChatHeader(
+                  chatCode: widget.chatCode,
+                  title: _liveName ?? widget.chatName ?? 'Chat',
+                  status: _status.status,
+                  onBack: _handleExitToChats,
+                  onInfo: _openChatInfo,
+                  onSearch: _openSearch,
                 ),
               ),
             ],

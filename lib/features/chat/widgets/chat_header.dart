@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:math' as math;
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/chat_status.dart';
+import 'package:sinai/features/chat/widgets/tic_tac_toe.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -14,6 +19,7 @@ import 'package:sinai/theme/color_theme.dart';
 class ChatHeader extends StatefulWidget implements PreferredSizeWidget {
   const ChatHeader({
     super.key,
+    required this.chatCode,
     required this.title,
     required this.status,
     required this.onBack,
@@ -23,6 +29,7 @@ class ChatHeader extends StatefulWidget implements PreferredSizeWidget {
 
   static const height = 88.0;
 
+  final String chatCode;
   final String title;
   final ValueListenable<ChatStatus?> status;
   final VoidCallback onBack;
@@ -37,6 +44,28 @@ class ChatHeader extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _ChatHeaderState extends State<ChatHeader> {
+  /// The chat's tic-tac-toe game, if one was started.
+  TicTacToe? _game;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _gameSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _gameSub = FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.chatCode)
+        .snapshots()
+        .listen((doc) {
+      if (mounted) setState(() => _game = TicTacToe.fromChat(doc.data()));
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _gameSub?.cancel();
+    super.dispose();
+  }
+
   String get title => widget.title;
   ValueListenable<ChatStatus?> get status => widget.status;
   VoidCallback get onBack => widget.onBack;
@@ -52,8 +81,11 @@ class _ChatHeaderState extends State<ChatHeader> {
       clipBehavior: Clip.none,
       children: [
         // Fades the messages scrolling under the header.
-        Positioned.fill(
-          bottom: -24,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: top + ChatHeader.height + 24,
           child: IgnorePointer(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -116,6 +148,22 @@ class _ChatHeaderState extends State<ChatHeader> {
             child: _Notch(
               top: 0,
               onTap: onInfo,
+              board: (armed) => TicTacToeBoard(
+                chatCode: widget.chatCode,
+                game: _game,
+                armed: armed,
+              ),
+              // Like pull to refresh: letting go past the mark starts a
+              // game, unless one is still being played.
+              onPulled: () {
+                if (_game == null || _game!.isOver) {
+                  TicTacToe.start(widget.chatCode).catchError((_) {});
+                }
+              },
+              waiting: _game?.isTurnOf(
+                    FirebaseAuth.instance.currentUser?.uid ?? '',
+                  ) ??
+                  false,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(18, top + 6, 18, 10),
                 child: Column(
@@ -172,7 +220,20 @@ class _Notch extends StatefulWidget {
     required this.child,
     required this.onTap,
     required this.top,
+    required this.board,
+    required this.onPulled,
+    required this.waiting,
   });
+
+  /// Shown under the name while the notch is pulled far down; armed once
+  /// it's pulled far enough that letting go starts a game.
+  final Widget Function(bool armed) board;
+
+  /// Let go after being pulled past the mark.
+  final VoidCallback onPulled;
+
+  /// A game waits on this user: the notch hops to say so.
+  final bool waiting;
 
   /// Where the curves start; 0 hangs it from the very top.
   final double top;
@@ -183,11 +244,10 @@ class _Notch extends StatefulWidget {
   State<_Notch> createState() => _NotchState();
 }
 
-/// Just for fun: the notch can be pulled down like rubber and snaps back
-/// with a wobble when let go.
 /// Starts as a small droplet hanging from the top. Pulling it down grows
 /// it into the full notch with the chat name; pushing it up shrinks it back.
-/// Pulled past full size it stretches like rubber and wobbles back.
+/// Pulled past full size it stretches like rubber and wobbles back; pulled
+/// far enough, it opens the game board. Pushing up closes the board.
 class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   static const _grabber = 4.0;
   static const _grabberGap = 7.0;
@@ -213,6 +273,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncHop();
+    });
     if (_savedOpen == null) {
       SharedPreferences.getInstance().then((prefs) {
         _savedOpen = prefs.getBool(_prefKey) ?? false;
@@ -236,6 +299,46 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     duration: const Duration(milliseconds: 700),
   )..addListener(() => setState(() => _pull = _snapFrom * (1 - _curve())));
 
+  /// How far past full size to pull to open the board.
+  static const _boardPull = 120.0;
+
+  /// Pulled this far, the board starts showing.
+  static const _boardPeek = 30.0;
+
+  bool _showBoard = false;
+
+  /// Vertical travel of the current drag.
+  double _gestureDy = 0;
+
+  /// Hops the notch down every second while a game waits on the user.
+  late final AnimationController _hop = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 1),
+  )..addListener(() => setState(() {}));
+
+  double get _hopOffset {
+    const up = 0.3;
+    final t = _hop.value;
+    return t < up ? 16 * math.sin(math.pi * t / up) : 0;
+  }
+
+  void _syncHop() {
+    final hop = widget.waiting && !_showBoard;
+    if (hop && !_hop.isAnimating) {
+      _hop.repeat();
+    } else if (!hop && _hop.isAnimating) {
+      _hop
+        ..stop()
+        ..value = 0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_Notch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncHop();
+  }
+
   /// Finger travel: the first [_openDistance] opens, the rest stretches.
   double _drag = 0;
   double _pull = 0;
@@ -244,6 +347,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   double _curve() => Curves.elasticOut.transform(_snap.value);
 
   void _start(DragStartDetails _) {
+    _gestureDy = 0;
     _open.stop();
     _snap.stop();
     _drag = _open.value * _openDistance + _stretchToDrag(_pull);
@@ -259,6 +363,11 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
 
   void _update(DragUpdateDetails details) {
     _drag = math.max(0, _drag + details.delta.dy);
+    _gestureDy += details.delta.dy;
+    if (_showBoard && _gestureDy < -30) {
+      _showBoard = false;
+      _syncHop();
+    }
     setState(() {
       _open.value = (_drag / _openDistance).clamp(0, 1);
       _pull = _dragToStretch(math.max(0, _drag - _openDistance));
@@ -267,6 +376,11 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
 
   void _release([DragEndDetails? details]) {
     _drag = 0;
+    if (_pull > _boardPull) {
+      _showBoard = true;
+      _syncHop();
+      widget.onPulled();
+    }
     if (_pull > 0) {
       _snapFrom = _pull;
       _snap.forward(from: 0);
@@ -288,6 +402,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _hop.dispose();
     _open.dispose();
     _snap.dispose();
     super.dispose();
@@ -337,14 +452,29 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
                             child: AnimatedSize(
                               duration: const Duration(milliseconds: 250),
                               curve: Curves.easeOutCubic,
-                              child: widget.child,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  widget.child,
+                                  if (_showBoard || _pull > _boardPeek)
+                                    // Taps on the game stay in the game instead of
+                                    // opening the chat info.
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () {},
+                                      child: widget.board(_pull > _boardPull),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                       // Overshoots up a little while wobbling back; never
                       // shrinks below its own size.
-                      SizedBox(height: _pull.clamp(0, double.infinity)),
+                      SizedBox(
+                        height: _pull.clamp(0, double.infinity) + _hopOffset,
+                      ),
                       // A home-indicator bar hinting that it can be pulled.
                       Container(
                         width: 36,
