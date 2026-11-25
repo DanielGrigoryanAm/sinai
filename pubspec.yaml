@@ -37,6 +37,8 @@ dependencies:
   http: ^1.6.0
   bloc_concurrency: ^0.3.0
   chess: ^0.8.1
+  flutter_secure_storage: ^11.2.0
+  web_socket_channel: ^3.0.3
 
 
 dev_dependencies:
