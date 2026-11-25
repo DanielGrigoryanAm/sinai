@@ -1,5 +1,5 @@
 import 'package:auto_route/auto_route.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/draft_store.dart';
 import 'package:flutter/services.dart';
@@ -298,7 +298,7 @@ class _ChatRow extends StatelessWidget {
     final message = chat.lastMessage;
     if (message == null) return 'No messages yet';
 
-    final isMine = chat.lastSenderId == FirebaseAuth.instance.currentUser?.uid;
+    final isMine = chat.lastSenderId == currentUserId();
     final sender = isMine ? 'You' : chat.lastSenderName;
     final text = message.replaceAll('\n', ' ');
     return sender == null || sender.isEmpty ? text : '$sender: $text';

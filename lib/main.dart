@@ -1,6 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/draft_store.dart';
 import 'package:sinai/features/presence/presence_service.dart';
@@ -22,6 +25,17 @@ void main() async {
 
   if (FirebaseAuth.instance.currentUser == null) {
     await FirebaseAuth.instance.signInAnonymously();
+  }
+
+  // The backend session comes from the Firebase account, so people keep
+  // their chats when the app moves over.
+  if (ApiConfig.useBackend) {
+    try {
+      await AuthApi.instance.ensureSignedIn();
+      LiveSocket.instance.start();
+    } catch (e) {
+      debugPrint('Backend sign-in failed: $e');
+    }
   }
 
   PresenceService.instance.start();

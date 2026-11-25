@@ -10,6 +10,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:sinai/api/api_client.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/api/chats_api.dart';
+import 'package:sinai/api/current_user.dart';
+import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
@@ -19,11 +25,18 @@ import 'package:sinai/features/presence/realtime_db.dart';
 
 part 'chat_event.dart';
 part 'chat_state.dart';
+part 'chat_bloc_backend.dart';
 
-class ChatBloc extends Bloc<ChatEvent, ChatState> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+class ChatBloc extends Bloc<ChatEvent, ChatState> with _BackendChats {
+  // Only touched on the Firebase path.
+  late final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   ChatBloc() : super(ChatInitial()) {
+    on<SetUserNameEvent>(_onSetUserName);
+    if (ApiConfig.useBackend) {
+      _registerBackend();
+      return;
+    }
     on<CreateChatEvent>(_onCreateChat);
     on<JoinChatEvent>(_onJoinChat);
     on<SendMessageEvent>(_onSendMessage);
@@ -34,7 +47,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     on<EditMessageEvent>(_onEditMessage);
     on<DeleteMessageEvent>(_onDeleteMessage);
     on<MessagesSubscribeEvent>(_onMessagesSubscribe);
-    on<SetUserNameEvent>(_onSetUserName);
     on<GetChatsEvent>(_onGetChats);
     on<DeleteChatEvent>(_onDeleteChat);
     on<_ChatsSnapshotInternal>(_onChatsSnapshot);
@@ -69,6 +81,8 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
       }
 
       await user.updateDisplayName(event.name);
+      // Kept in step on the backend while both are in use.
+      if (ApiConfig.useBackend) await AuthApi.instance.rename(event.name);
       await OnboardingPrefs.setNameConfirmed();
       await PresenceService.instance.refreshName();
       emit(UserNameSaved(event.name));
@@ -853,6 +867,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   @override
   Future<void> close() {
+    _closeBackend();
     _messagesSubscription?.cancel();
     _chatDocSubscription?.cancel();
     _cancelChatsSubscriptions();

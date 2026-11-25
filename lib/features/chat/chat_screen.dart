@@ -3,7 +3,7 @@ import 'package:sinai/common/app_icons.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/confirm_dialog.dart';
@@ -305,7 +305,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     final previous = _lastMessageId;
     _lastMessageId = last.id;
     if (previous == null || previous == last.id || !_scrolledAway) return;
-    if (last.senderId == FirebaseAuth.instance.currentUser?.uid) return;
+    if (last.senderId == currentUserId()) return;
     setState(() => _newWhileAway++);
   }
 
@@ -379,7 +379,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                         }
 
                         final messages = state.messages;
-                        final myId = FirebaseAuth.instance.currentUser?.uid;
+                        final myId = currentUserId();
 
                         // Reversed, so the newest message stays pinned to the
                         // bottom and older pages load above without moving
