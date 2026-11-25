@@ -37,6 +37,17 @@ type conn struct {
 	send chan []byte
 }
 
+// Users lists who has a socket open on this server.
+func (h *Hub) Users() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	ids := make([]string, 0, len(h.conns))
+	for id := range h.conns {
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 // Online reports whether the user has a socket open on this server.
 func (h *Hub) Online(userID string) bool {
 	h.mu.RLock()

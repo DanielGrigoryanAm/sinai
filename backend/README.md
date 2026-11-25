@@ -40,6 +40,8 @@ The schema in `internal/db/migrations` is applied on start.
 | DELETE | `/v1/chats/{code}/messages/{id}` | ✓ | Delete own (owner: any)     |
 | PUT    | `/v1/chats/{code}/messages/{id}/reaction` | ✓ | `{emoji}`          |
 | DELETE | `/v1/chats/{code}/messages/{id}/reaction` | ✓ | Remove reaction    |
+| POST   | `/v1/chats/{code}/uploads` | ✓ | `{kind, contentType}` → signed PUT URL and key |
+| GET    | `/v1/files/{key}`  | ✓    | Redirects a chat member to the file    |
 | GET    | `/v1/ws`           | ✓    | WebSocket of live events               |
 
 Authenticated requests send `Authorization: Bearer <accessToken>`. Access
@@ -49,10 +51,24 @@ tokens last 15 minutes; refresh tokens 30 days and work once each.
 
 `/v1/ws` pushes JSON events `{type, chat, data}`: `message.created`,
 `message.updated`, `message.deleted`, `chat.updated`, `chat.read`,
-`chat.removed`, `chat.deleted`, `typing`. Clients send
+`chat.removed`, `chat.deleted`, `typing`, `presence`
+(`{userId, online, lastSeen}`, to everyone sharing a chat). Clients send
 `{"type":"typing","chat":"CODE"}` while typing. Events go through Redis,
 so they reach users on any server instance.
 
 ## Smoke test
 
 With the server running: `go run ./cmd/smoke`.
+
+## Files
+
+1. `POST /v1/chats/{code}/uploads` with `kind` (`image`, `voice` or
+   `avatar`) and the file's `contentType`.
+2. `PUT` the bytes to `uploadUrl` within 15 minutes.
+3. Send a message with `imageUrl` / `audioUrl` set to the `key`, or set
+   the chat's `photoUrl` to it. The API checks the file is there and not
+   too big (photos 15 MB, voice 25 MB, chat pictures 5 MB).
+
+Messages and chats come back with `/v1/files/...` addresses; loading one
+with the access token redirects to a short-lived storage link. Files go
+when their message or chat is deleted.

@@ -10,6 +10,7 @@ import (
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/chats"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/httpapi"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/storage"
 )
 
 const maxTextLength = 4000
@@ -18,11 +19,44 @@ type Handler struct {
 	messages *Store
 	chats    *chats.Store
 	events   chats.Publisher
+	files    *storage.Storage
 	userID   func(*http.Request) string
 }
 
-func NewHandler(messages *Store, chatStore *chats.Store, events chats.Publisher, userID func(*http.Request) string) *Handler {
-	return &Handler{messages: messages, chats: chatStore, events: events, userID: userID}
+func NewHandler(messages *Store, chatStore *chats.Store, events chats.Publisher, files *storage.Storage, userID func(*http.Request) string) *Handler {
+	return &Handler{messages: messages, chats: chatStore, events: events, files: files, userID: userID}
+}
+
+// withURLs turns stored file keys into addresses clients can load.
+func withURLs(m Message) Message {
+	m.ImageURL = storage.URL(m.ImageURL)
+	m.AudioURL = storage.URL(m.AudioURL)
+	return m
+}
+
+func allWithURLs(list []Message) []Message {
+	if list == nil {
+		return []Message{}
+	}
+	for i := range list {
+		list[i] = withURLs(list[i])
+	}
+	return list
+}
+
+// attach checks an uploaded file and returns its key.
+func (h *Handler) attach(r *http.Request, chat string, value *string, kind storage.Kind) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	key, err := storage.KeyOf(*value, chat)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.files.Check(r.Context(), key, kind); err != nil {
+		return nil, httpapi.BadRequest(err.Error())
+	}
+	return &key, nil
 }
 
 func (h *Handler) Register(mux *http.ServeMux, auth func(http.Handler) http.Handler) {
@@ -55,7 +89,7 @@ func (h *Handler) notify(ctx context.Context, kind string, m Message) {
 	if err != nil {
 		return
 	}
-	h.events.Publish(ctx, realtime.Event{Type: kind, Chat: m.ChatCode, Data: m, To: members})
+	h.events.Publish(ctx, realtime.Event{Type: kind, Chat: m.ChatCode, Data: withURLs(m), To: members})
 }
 
 func limit(r *http.Request) int {
@@ -75,7 +109,7 @@ func (h *Handler) page(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return httpapi.WriteJSON(w, http.StatusOK, nonNil(list))
+	return httpapi.WriteJSON(w, http.StatusOK, allWithURLs(list))
 }
 
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) error {
@@ -91,14 +125,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return httpapi.WriteJSON(w, http.StatusOK, nonNil(list))
-}
-
-func nonNil(list []Message) []Message {
-	if list == nil {
-		return []Message{}
-	}
-	return list
+	return httpapi.WriteJSON(w, http.StatusOK, allWithURLs(list))
 }
 
 func checkText(text string) error {
@@ -124,12 +151,18 @@ func (h *Handler) send(w http.ResponseWriter, r *http.Request) error {
 	if err := checkText(n.Text); err != nil {
 		return err
 	}
+	if n.ImageURL, err = h.attach(r, chat, n.ImageURL, storage.Image); err != nil {
+		return err
+	}
+	if n.AudioURL, err = h.attach(r, chat, n.AudioURL, storage.Voice); err != nil {
+		return err
+	}
 	m, err := h.messages.Send(r.Context(), chat, h.userID(r), n)
 	if err != nil {
 		return err
 	}
 	h.notify(r.Context(), "message.created", m)
-	return httpapi.WriteJSON(w, http.StatusCreated, m)
+	return httpapi.WriteJSON(w, http.StatusCreated, withURLs(m))
 }
 
 func (h *Handler) edit(w http.ResponseWriter, r *http.Request) error {
@@ -151,7 +184,7 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	h.notify(r.Context(), "message.updated", m)
-	return httpapi.WriteJSON(w, http.StatusOK, m)
+	return httpapi.WriteJSON(w, http.StatusOK, withURLs(m))
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
@@ -164,6 +197,12 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	h.notify(r.Context(), "message.deleted", m)
+	// Its photo or voice file goes with it.
+	for _, key := range []*string{m.ImageURL, m.AudioURL} {
+		if key != nil {
+			h.files.Delete(context.WithoutCancel(r.Context()), *key)
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
@@ -195,5 +234,5 @@ func (h *Handler) setReaction(w http.ResponseWriter, r *http.Request, emoji stri
 		return err
 	}
 	h.notify(r.Context(), "message.updated", m)
-	return httpapi.WriteJSON(w, http.StatusOK, m)
+	return httpapi.WriteJSON(w, http.StatusOK, withURLs(m))
 }

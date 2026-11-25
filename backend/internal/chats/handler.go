@@ -7,6 +7,7 @@ import (
 
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/httpapi"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/storage"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/users"
 )
 
@@ -18,11 +19,37 @@ type Publisher interface {
 type Handler struct {
 	chats  *Store
 	events Publisher
+	files  *storage.Storage
 	userID func(*http.Request) string
+
+	// Reports which users are online; members are marked with it.
+	Online func(ctx context.Context, ids []string) map[string]bool
 }
 
-func NewHandler(chats *Store, events Publisher, userID func(*http.Request) string) *Handler {
-	return &Handler{chats: chats, events: events, userID: userID}
+func NewHandler(chats *Store, events Publisher, files *storage.Storage, userID func(*http.Request) string) *Handler {
+	return &Handler{chats: chats, events: events, files: files, userID: userID}
+}
+
+// withOnline marks which members are online right now.
+func (h *Handler) withOnline(ctx context.Context, c Chat) Chat {
+	if h.Online == nil || len(c.Members) == 0 {
+		return c
+	}
+	ids := make([]string, len(c.Members))
+	for i, m := range c.Members {
+		ids[i] = m.UserID
+	}
+	online := h.Online(ctx, ids)
+	for i := range c.Members {
+		c.Members[i].Online = online[c.Members[i].UserID]
+	}
+	return c
+}
+
+// out turns the stored picture key into an address clients can load.
+func out(c Chat) Chat {
+	c.PhotoURL = storage.URL(c.PhotoURL)
+	return c
 }
 
 func (h *Handler) Register(mux *http.ServeMux, auth func(http.Handler) http.Handler) {
@@ -45,7 +72,7 @@ func (h *Handler) changed(ctx context.Context, c Chat) {
 	for i, m := range c.Members {
 		to[i] = m.UserID
 	}
-	h.events.Publish(ctx, realtime.Event{Type: "chat.updated", Chat: c.Code, Data: c, To: to})
+	h.events.Publish(ctx, realtime.Event{Type: "chat.updated", Chat: c.Code, Data: out(c), To: to})
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
@@ -55,6 +82,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 	}
 	if chats == nil {
 		chats = []Summary{}
+	}
+	for i := range chats {
+		chats[i].Chat = out(chats[i].Chat)
 	}
 	return httpapi.WriteJSON(w, http.StatusOK, chats)
 }
@@ -74,7 +104,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return httpapi.WriteJSON(w, http.StatusCreated, c)
+	return httpapi.WriteJSON(w, http.StatusCreated, out(c))
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) error {
@@ -82,7 +112,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return httpapi.WriteJSON(w, http.StatusOK, c)
+	return httpapi.WriteJSON(w, http.StatusOK, out(h.withOnline(r.Context(), c)))
 }
 
 func (h *Handler) join(w http.ResponseWriter, r *http.Request) error {
@@ -91,7 +121,7 @@ func (h *Handler) join(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	h.changed(r.Context(), c)
-	return httpapi.WriteJSON(w, http.StatusOK, c)
+	return httpapi.WriteJSON(w, http.StatusOK, out(c))
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
@@ -113,12 +143,22 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
 		}
 		body.Name = &name
 	}
+	if body.PhotoURL != nil && *body.PhotoURL != "" {
+		key, err := storage.KeyOf(*body.PhotoURL, code(r))
+		if err != nil {
+			return err
+		}
+		if err := h.files.Check(r.Context(), key, storage.Avatar); err != nil {
+			return httpapi.BadRequest(err.Error())
+		}
+		body.PhotoURL = &key
+	}
 	c, err := h.chats.Update(r.Context(), code(r), h.userID(r), body.Name, body.PhotoURL, body.Game)
 	if err != nil {
 		return err
 	}
 	h.changed(r.Context(), c)
-	return httpapi.WriteJSON(w, http.StatusOK, c)
+	return httpapi.WriteJSON(w, http.StatusOK, out(c))
 }
 
 func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) error {
@@ -151,6 +191,7 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	h.events.Publish(ctx, realtime.Event{Type: "chat.deleted", Chat: chat, To: members})
+	go h.files.DeleteAll(context.WithoutCancel(ctx), storage.ChatPrefix(chat))
 	w.WriteHeader(http.StatusNoContent)
 	return nil
 }

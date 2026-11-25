@@ -20,6 +20,7 @@ import (
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/db"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/messages"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/storage"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/users"
 )
 
@@ -52,6 +53,11 @@ func run() error {
 	rdb := redis.NewClient(redisOpts)
 	defer rdb.Close()
 	if err := rdb.Ping(ctx).Err(); err != nil {
+		return err
+	}
+
+	files, err := storage.New(ctx, storage.Config(cfg.Storage))
+	if err != nil {
 		return err
 	}
 
@@ -89,11 +95,24 @@ func run() error {
 			})
 		}
 	}
-	// Remember when a user was last connected, for "last seen".
+	presence := realtime.NewPresence(rdb, hub)
+	go presence.Run(ctx)
+
+	// Tell everyone sharing a chat with the user when they come or go,
+	// and remember when they were last connected, for "last seen".
 	hub.OnPresence = func(userID string, online bool) {
+		ctx := context.Background()
+		presence.Set(ctx, userID, online)
+		data := map[string]any{"userId": userID, "online": online}
 		if !online {
-			pool.Exec(context.Background(),
-				`UPDATE users SET last_seen = now() WHERE id = $1`, userID)
+			var at time.Time
+			if pool.QueryRow(ctx, `UPDATE users SET last_seen = now()
+				WHERE id = $1 RETURNING last_seen`, userID).Scan(&at) == nil {
+				data["lastSeen"] = at
+			}
+		}
+		if contacts, err := chatStore.ContactIDs(ctx, userID); err == nil {
+			bus.Publish(ctx, realtime.Event{Type: "presence", Data: data, To: contacts})
 		}
 	}
 	userID := func(r *http.Request) string { return auth.UserID(r.Context()) }
@@ -104,8 +123,11 @@ func run() error {
 	})
 	auth.NewHandler(authService, userStore).Register(mux)
 	users.NewHandler(userStore, userID).Register(mux, authService.Require)
-	chats.NewHandler(chatStore, bus, userID).Register(mux, authService.Require)
-	messages.NewHandler(messageStore, chatStore, bus, userID).Register(mux, authService.Require)
+	chatHandler := chats.NewHandler(chatStore, bus, files, userID)
+	chatHandler.Online = presence.Online
+	chatHandler.Register(mux, authService.Require)
+	messages.NewHandler(messageStore, chatStore, bus, files, userID).Register(mux, authService.Require)
+	storage.NewHandler(files, chatStore.IsMember, userID).Register(mux, authService.Require)
 
 	// The live connection. Apps send the access token in the header;
 	// ?token= is there for clients that can't set headers on sockets.

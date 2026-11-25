@@ -30,6 +30,8 @@ type Member struct {
 	Name     string     `json:"name"`
 	PhotoURL *string    `json:"photoUrl"`
 	JoinedAt time.Time  `json:"joinedAt"`
+	LastSeen *time.Time `json:"lastSeen"`
+	Online   bool       `json:"online"`
 	ReadAt   *time.Time `json:"readAt"`
 }
 
@@ -135,7 +137,7 @@ func (s *Store) Get(ctx context.Context, code, userID string) (Chat, error) {
 		return Chat{}, err
 	}
 	rows, err := s.db.Query(ctx, `
-		SELECT m.user_id, u.name, u.photo_url, m.joined_at, m.read_at
+		SELECT m.user_id, u.name, u.photo_url, m.joined_at, u.last_seen, m.read_at
 		FROM chat_members m JOIN users u ON u.id = m.user_id
 		WHERE m.chat_code = $1 ORDER BY m.joined_at`, code)
 	if err != nil {
@@ -143,7 +145,7 @@ func (s *Store) Get(ctx context.Context, code, userID string) (Chat, error) {
 	}
 	c.Members, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (Member, error) {
 		var m Member
-		err := row.Scan(&m.UserID, &m.Name, &m.PhotoURL, &m.JoinedAt, &m.ReadAt)
+		err := row.Scan(&m.UserID, &m.Name, &m.PhotoURL, &m.JoinedAt, &m.LastSeen, &m.ReadAt)
 		return m, err
 	})
 	return c, err
@@ -199,6 +201,20 @@ func (s *Store) List(ctx context.Context, userID string) ([]Summary, error) {
 func (s *Store) MemberIDs(ctx context.Context, code string) ([]string, error) {
 	rows, err := s.db.Query(ctx,
 		`SELECT user_id::text FROM chat_members WHERE chat_code = $1`, code)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowTo[string])
+}
+
+// ContactIDs returns everyone sharing a chat with userID, who should hear
+// when they come and go.
+func (s *Store) ContactIDs(ctx context.Context, userID string) ([]string, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT DISTINCT other.user_id::text
+		FROM chat_members me
+		JOIN chat_members other ON other.chat_code = me.chat_code
+		WHERE me.user_id = $1 AND other.user_id <> $1`, userID)
 	if err != nil {
 		return nil, err
 	}

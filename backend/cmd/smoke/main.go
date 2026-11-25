@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -141,12 +142,93 @@ func main() {
 	st, _, _ = call("PATCH", "/v1/chats/"+code, tb, map[string]any{"game": map[string]any{"pick": "chess"}})
 	check("bob can set the game", st == 200)
 
+	// Files: get an upload URL, PUT the bytes, send the message with it.
+	st, up, _ := call("POST", "/v1/chats/"+code+"/uploads", ta,
+		map[string]any{"kind": "image", "contentType": "image/jpeg"})
+	check("upload url", st == 200 && up["uploadUrl"] != nil, st, up["error"])
+	photo := []byte("not really a jpeg, but bytes")
+	req, _ := http.NewRequest("PUT", up["uploadUrl"].(string), bytes.NewReader(photo))
+	res, err := http.DefaultClient.Do(req)
+	check("put to storage", err == nil && res.StatusCode == 200, err)
+	st, pic, _ := call("POST", "/v1/chats/"+code+"/messages", ta,
+		map[string]any{"imageUrl": up["key"], "imageWidth": 10, "imageHeight": 10})
+	imageURL, _ := pic["imageUrl"].(string)
+	check("send photo", st == 201 && strings.HasPrefix(imageURL, "/v1/files/chats/"+code+"/images/"), imageURL)
+
+	st, _, _ = call("POST", "/v1/chats/"+code+"/messages", ta,
+		map[string]any{"imageUrl": "chats/" + code + "/images/never-uploaded"})
+	check("refuses a file never uploaded", st == 400, st)
+	st, _, _ = call("POST", "/v1/chats/"+code+"/messages", ta,
+		map[string]any{"imageUrl": "chats/OTHER1/images/x"})
+	check("refuses another chat's file", st == 400, st)
+
+	req, _ = http.NewRequest("GET", base+imageURL, nil)
+	req.Header.Set("Authorization", "Bearer "+tb)
+	res, err = http.DefaultClient.Do(req)
+	got, _ := io.ReadAll(res.Body)
+	check("member downloads it", err == nil && res.StatusCode == 200 && bytes.Equal(got, photo), res.StatusCode)
+
+	_, c, _ := call("POST", "/v1/auth/guest", "", map[string]any{"name": "Carol"})
+	req, _ = http.NewRequest("GET", base+imageURL, nil)
+	req.Header.Set("Authorization", "Bearer "+c["accessToken"].(string))
+	res, _ = http.DefaultClient.Do(req)
+	check("outsider can't", res.StatusCode == 404, res.StatusCode)
+
+	// Presence: Bob's socket is open, so he is online.
+	_, info, _ := call("GET", "/v1/chats/"+code, ta, nil)
+	online := map[string]bool{}
+	for _, m := range info["members"].([]any) {
+		mm := m.(map[string]any)
+		online[mm["userId"].(string)] = mm["online"].(bool)
+	}
+	check("bob shows online", online[bobID], online)
+
 	ws.Write(ctx, websocket.MessageText, []byte(`{"type":"typing","chat":"`+code+`"}`))
 	wa, _, _ := websocket.Dial(ctx, "ws://localhost:8080/v1/ws?token="+ta, nil)
 	time.Sleep(200 * time.Millisecond)
 	ws.Write(ctx, websocket.MessageText, []byte(`{"type":"typing","chat":"`+code+`"}`))
-	_, data, err := wa.Read(ctx)
-	check("alice sees bob typing", err == nil && bytes.Contains(data, []byte(`"typing"`)), string(data))
+	aliceEvents := make(chan []byte, 10)
+	go func() {
+		for {
+			_, data, err := wa.Read(ctx)
+			if err != nil {
+				return
+			}
+			aliceEvents <- data
+		}
+	}()
+	waitAlice := func(want string) []byte {
+		for {
+			select {
+			case data := <-aliceEvents:
+				if bytes.Contains(data, []byte(want)) {
+					return data
+				}
+			case <-time.After(3 * time.Second):
+				return nil
+			}
+		}
+	}
+	data := waitAlice(`"type":"typing"`)
+	check("alice sees bob typing", data != nil, string(data))
+
+	ws.Close(websocket.StatusNormalClosure, "bye")
+	data = waitAlice(`"online":false`)
+	check("alice sees bob go offline", data != nil && bytes.Contains(data, []byte("lastSeen")), string(data))
+	ws, _, _ = websocket.Dial(ctx, "ws://localhost:8080/v1/ws?token="+tb, nil)
+	go func() {
+		for {
+			_, data, err := ws.Read(ctx)
+			if err != nil {
+				return
+			}
+			var e map[string]any
+			json.Unmarshal(data, &e)
+			events <- e
+		}
+	}()
+	data = waitAlice(`"online":true`)
+	check("and back online", data != nil, string(data))
 
 	st, _, _ = call("DELETE", "/v1/chats/"+code+"/members/me", tb, nil)
 	check("bob leaves", st == 204)

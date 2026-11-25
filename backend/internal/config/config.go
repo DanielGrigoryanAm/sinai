@@ -16,6 +16,16 @@ type Config struct {
 	JWTSecret       []byte
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
+	Storage         StorageConfig
+}
+
+type StorageConfig struct {
+	Endpoint       string
+	PublicEndpoint string
+	AccessKey      string
+	SecretKey      string
+	Bucket         string
+	UseSSL         bool
 }
 
 // Load reads the environment, after filling it from a .env file if one is
@@ -39,6 +49,14 @@ func Load() (Config, error) {
 		JWTSecret:       []byte(os.Getenv("JWT_SECRET")),
 		AccessTokenTTL:  accessTTL,
 		RefreshTokenTTL: refreshTTL,
+		Storage: StorageConfig{
+			Endpoint:       env("S3_ENDPOINT", "localhost:8333"),
+			PublicEndpoint: os.Getenv("S3_PUBLIC_ENDPOINT"),
+			AccessKey:      env("S3_ACCESS_KEY", "sinai"),
+			SecretKey:      env("S3_SECRET_KEY", "sinai-secret"),
+			Bucket:         env("S3_BUCKET", "sinai"),
+			UseSSL:         os.Getenv("S3_USE_SSL") == "true",
+		},
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is not set")
