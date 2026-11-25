@@ -2,9 +2,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -135,7 +137,12 @@ func run() error {
 	userID := func(r *http.Request) string { return auth.UserID(r.Context()) }
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+	// Healthy when the database answers.
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		if err := pool.Ping(r.Context()); err != nil {
+			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		w.Write([]byte("ok"))
 	})
 	auth.NewHandler(authService, userStore).Register(mux)
@@ -167,7 +174,7 @@ func run() error {
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           mux,
+		Handler:           logRequests(mux),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -183,4 +190,38 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// logRequests logs each request's method, path, status and time taken.
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		slog.Info("request", "method", r.Method, "path", r.URL.Path,
+			"status", rec.status, "ms", time.Since(start).Milliseconds())
+	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+// Unwrap lets http.ResponseController reach the real writer.
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
+// Hijack hands the connection over for WebSocket upgrades.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	h, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("connection can't be taken over")
+	}
+	r.status = http.StatusSwitchingProtocols
+	return h.Hijack()
 }

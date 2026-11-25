@@ -30,6 +30,8 @@ type StorageConfig struct {
 	SecretKey      string
 	Bucket         string
 	UseSSL         bool
+	Region         string
+	CreateBucket   bool
 }
 
 // Load reads the environment, after filling it from a .env file if one is
@@ -62,6 +64,8 @@ func Load() (Config, error) {
 			SecretKey:      env("S3_SECRET_KEY", "sinai-secret"),
 			Bucket:         env("S3_BUCKET", "sinai"),
 			UseSSL:         os.Getenv("S3_USE_SSL") == "true",
+			Region:         os.Getenv("S3_REGION"),
+			CreateBucket:   os.Getenv("S3_CREATE_BUCKET") != "false",
 		},
 	}
 	if cfg.DatabaseURL == "" {

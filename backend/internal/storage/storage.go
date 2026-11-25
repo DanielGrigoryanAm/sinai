@@ -30,6 +30,11 @@ type Config struct {
 	SecretKey      string
 	Bucket         string
 	UseSSL         bool
+	// Cloudflare R2 uses "auto"; empty asks the server.
+	Region string
+	// Make the bucket if missing. Off where the bucket is set up by hand
+	// and the key may not create buckets, as on R2.
+	CreateBucket bool
 }
 
 // Kind is what a file is; it decides where it goes and how big it may be.
@@ -58,15 +63,19 @@ const downloadTTL = time.Hour
 
 func New(ctx context.Context, cfg Config) (*Storage, error) {
 	creds := credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, "")
-	client, err := minio.New(cfg.Endpoint, &minio.Options{Creds: creds, Secure: cfg.UseSSL})
+	client, err := minio.New(cfg.Endpoint, &minio.Options{Creds: creds, Secure: cfg.UseSSL, Region: cfg.Region})
 	if err != nil {
 		return nil, err
 	}
 	signer := client
 	if cfg.PublicEndpoint != "" && cfg.PublicEndpoint != cfg.Endpoint {
 		// Region set so signing needs no round trip to the public address.
+		region := cfg.Region
+		if region == "" {
+			region = "us-east-1"
+		}
 		signer, err = minio.New(cfg.PublicEndpoint, &minio.Options{
-			Creds: creds, Secure: cfg.UseSSL, Region: "us-east-1",
+			Creds: creds, Secure: cfg.UseSSL, Region: region,
 		})
 		if err != nil {
 			return nil, err
@@ -76,6 +85,9 @@ func New(ctx context.Context, cfg Config) (*Storage, error) {
 	exists, err := client.BucketExists(ctx, cfg.Bucket)
 	if err != nil {
 		return nil, fmt.Errorf("reach storage: %w", err)
+	}
+	if !exists && !cfg.CreateBucket {
+		return nil, fmt.Errorf("bucket %q does not exist", cfg.Bucket)
 	}
 	if !exists {
 		if err := client.MakeBucket(ctx, cfg.Bucket, minio.MakeBucketOptions{}); err != nil {
