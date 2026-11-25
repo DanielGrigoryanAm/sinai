@@ -25,5 +25,34 @@ The schema in `internal/db/migrations` is applied on start.
 | GET    | `/v1/me`           | ✓    | The signed-in user                     |
 | PATCH  | `/v1/me`           | ✓    | `{name}` → renames                     |
 
+| GET    | `/v1/chats`        | ✓    | My chats: last message, unread count   |
+| POST   | `/v1/chats`        | ✓    | `{name}` → new chat with a code        |
+| GET    | `/v1/chats/{code}` | ✓    | Chat with members                      |
+| PATCH  | `/v1/chats/{code}` | ✓    | `{name, photoUrl}` (owner), `{game}`   |
+| DELETE | `/v1/chats/{code}` | ✓    | Deletes the chat (owner)               |
+| POST   | `/v1/chats/{code}/join` | ✓ | Joins by code                        |
+| POST   | `/v1/chats/{code}/read` | ✓ | Marks read up to now                 |
+| DELETE | `/v1/chats/{code}/members/{id or me}` | ✓ | Leave / remove (owner) |
+| GET    | `/v1/chats/{code}/messages?before=&limit=` | ✓ | History, newest first |
+| POST   | `/v1/chats/{code}/messages` | ✓ | Send text, photo, voice, reply   |
+| GET    | `/v1/chats/{code}/messages/search?q=` | ✓ | Search text            |
+| PATCH  | `/v1/chats/{code}/messages/{id}` | ✓ | Edit own `{text}`           |
+| DELETE | `/v1/chats/{code}/messages/{id}` | ✓ | Delete own (owner: any)     |
+| PUT    | `/v1/chats/{code}/messages/{id}/reaction` | ✓ | `{emoji}`          |
+| DELETE | `/v1/chats/{code}/messages/{id}/reaction` | ✓ | Remove reaction    |
+| GET    | `/v1/ws`           | ✓    | WebSocket of live events               |
+
 Authenticated requests send `Authorization: Bearer <accessToken>`. Access
 tokens last 15 minutes; refresh tokens 30 days and work once each.
+
+## Live events
+
+`/v1/ws` pushes JSON events `{type, chat, data}`: `message.created`,
+`message.updated`, `message.deleted`, `chat.updated`, `chat.read`,
+`chat.removed`, `chat.deleted`, `typing`. Clients send
+`{"type":"typing","chat":"CODE"}` while typing. Events go through Redis,
+so they reach users on any server instance.
+
+## Smoke test
+
+With the server running: `go run ./cmd/smoke`.

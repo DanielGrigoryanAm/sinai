@@ -8,12 +8,18 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/auth"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/chats"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/config"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/db"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/messages"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/users"
 )
 
@@ -39,17 +45,82 @@ func run() error {
 	}
 	defer pool.Close()
 
+	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		return err
+	}
+	rdb := redis.NewClient(redisOpts)
+	defer rdb.Close()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		return err
+	}
+
 	authService := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	userStore := users.NewStore(pool)
+	chatStore := chats.NewStore(pool)
+	messageStore := messages.NewStore(pool)
+
+	hub := realtime.NewHub()
+	bus := realtime.NewBus(rdb, hub)
+	go bus.Run(ctx)
+
+	// "Typing" marks go straight to the other members, without storing.
+	hub.OnClientEvent = func(ctx context.Context, userID string, e realtime.ClientEvent) {
+		if e.Type != "typing" || e.Chat == "" {
+			return
+		}
+		members, err := chatStore.MemberIDs(ctx, e.Chat)
+		if err != nil {
+			return
+		}
+		others := members[:0]
+		inChat := false
+		for _, id := range members {
+			if id == userID {
+				inChat = true
+			} else {
+				others = append(others, id)
+			}
+		}
+		if inChat {
+			bus.Publish(ctx, realtime.Event{
+				Type: "typing", Chat: e.Chat, To: others,
+				Data: map[string]string{"userId": userID},
+			})
+		}
+	}
+	// Remember when a user was last connected, for "last seen".
+	hub.OnPresence = func(userID string, online bool) {
+		if !online {
+			pool.Exec(context.Background(),
+				`UPDATE users SET last_seen = now() WHERE id = $1`, userID)
+		}
+	}
+	userID := func(r *http.Request) string { return auth.UserID(r.Context()) }
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("ok"))
 	})
 	auth.NewHandler(authService, userStore).Register(mux)
-	users.NewHandler(userStore, func(r *http.Request) string {
-		return auth.UserID(r.Context())
-	}).Register(mux, authService.Require)
+	users.NewHandler(userStore, userID).Register(mux, authService.Require)
+	chats.NewHandler(chatStore, bus, userID).Register(mux, authService.Require)
+	messages.NewHandler(messageStore, chatStore, bus, userID).Register(mux, authService.Require)
+
+	// The live connection. Apps send the access token in the header;
+	// ?token= is there for clients that can't set headers on sockets.
+	mux.HandleFunc("GET /v1/ws", func(w http.ResponseWriter, r *http.Request) {
+		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if !ok {
+			token = r.URL.Query().Get("token")
+		}
+		id, err := authService.Verify(token)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		hub.Serve(w, r, id)
+	})
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
