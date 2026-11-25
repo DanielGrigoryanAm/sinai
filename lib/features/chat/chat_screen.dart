@@ -3,6 +3,8 @@ import 'package:sinai/common/app_icons.dart';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -239,18 +241,21 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   /// Live chat name, so a rename shows up without reopening the chat.
   String? _liveName;
   String? _photoUrl;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _nameSub;
+  StreamSubscription<Map<String, dynamic>?>? _nameSub;
 
   @override
   void initState() {
     super.initState();
-    _nameSub = FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatCode)
-        .snapshots()
-        .listen((doc) {
-      final name = (doc.data()?['name'] as String?)?.trim();
-      final photoUrl = doc.data()?['photoUrl'] as String?;
+    final chat = ApiConfig.useBackend
+        ? watchChat(widget.chatCode)
+        : FirebaseFirestore.instance
+            .collection('chats')
+            .doc(widget.chatCode)
+            .snapshots()
+            .map((doc) => doc.data());
+    _nameSub = chat.listen((data) {
+      final name = (data?['name'] as String?)?.trim();
+      final photoUrl = data?['photoUrl'] as String?;
       if (!mounted) return;
       if ((name != null && name.isNotEmpty && name != _liveName) ||
           photoUrl != _photoUrl) {

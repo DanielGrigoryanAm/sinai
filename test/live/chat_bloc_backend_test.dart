@@ -7,7 +7,11 @@ library;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sinai/api/api_client.dart';
+import 'dart:typed_data';
+
 import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chat_watch.dart';
+import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/api/session_store.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
@@ -129,6 +133,63 @@ void main() {
     for (final bloc in [creator, list, paged]) {
       await bloc.close();
     }
+    await LiveSocket.instance.stop();
+  }, skip: enabled ? false : 'needs a backend; see the top of the file');
+
+  test('chat info stays live', () async {
+    final alice = ApiClient.instance;
+    if (!alice.isSignedIn) {
+      FlutterSecureStorage.setMockInitialValues({});
+      await alice.startSession(await alice.postPublic(
+          '/v1/auth/guest', {'name': 'Alice'}) as Map<String, dynamic>);
+    }
+    LiveSocket.instance.start();
+    for (var i = 0; i < 50 && !LiveSocket.instance.connected.value; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    final bob = ApiClient(store: MemoryStore());
+    await bob.startSession(await bob.postPublic(
+        '/v1/auth/guest', {'name': 'Bob'}) as Map<String, dynamic>);
+    final bobId = bob.userId!;
+
+    final code = await ChatsApi.instance.create('Info test');
+    final updates = watchChat(code).asBroadcastStream();
+    Future<Map<String, dynamic>?> until(bool Function(Map<String, dynamic>?) f) =>
+        updates.firstWhere(f).timeout(const Duration(seconds: 8));
+
+    final first = await until((c) => c != null);
+    expect(first!['name'], 'Info test');
+    expect(first['ownerId'], alice.userId);
+
+    // Bob joins and comes online.
+    final joined = until((c) => (c?['participantIds'] as List?)?.contains(bobId) ?? false);
+    await bob.post('/v1/chats/$code/join');
+    await joined;
+    final online = until((c) => c?['members']?[bobId]?['online'] == true);
+    final bobSocket = LiveSocket(bob)..start();
+    await online;
+    final offline = until((c) =>
+        c?['members']?[bobId]?['online'] == false &&
+        c?['members']?[bobId]?['lastSeen'] != null);
+    await bobSocket.stop();
+    await offline;
+
+    // Rename and photo come through live.
+    final renamed = until((c) => c?['name'] == 'Переименован');
+    await ChatsApi.instance.rename(code, 'Переименован');
+    await renamed;
+    final photo = until((c) =>
+        (c?['photoUrl'] as String?)?.startsWith(ApiConfig.baseUrl) ?? false);
+    await ChatsApi.instance.setPhoto(code, Uint8List.fromList([1, 2, 3]), 'image/jpeg');
+    await photo;
+
+    // Bob can't rename; the owner removes him and his view ends.
+    await expectLater(ChatsApi(bob).rename(code, 'x'), throwsA(isA<ApiException>()));
+    final gone = until((c) => !((c?['participantIds'] as List?)?.contains(bobId) ?? true));
+    await ChatsApi.instance.removeMember(code, bobId);
+    await gone;
+
+    await ChatsApi.instance.deleteOrLeave(code, isOwner: true);
     await LiveSocket.instance.stop();
   }, skip: enabled ? false : 'needs a backend; see the top of the file');
 }

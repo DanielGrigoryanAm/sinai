@@ -45,6 +45,21 @@ class ChatsApi {
 
   Future<void> markRead(String code) => _api.post('${_chat(code)}/read');
 
+  /// Owner only.
+  Future<void> rename(String code, String name) =>
+      _api.patch(_chat(code), {'name': name});
+
+  /// Owner only: uploads [bytes] and makes them the chat's picture.
+  Future<void> setPhoto(String code, Uint8List bytes, String contentType) async {
+    final key = await upload(code,
+        kind: 'avatar', contentType: contentType, bytes: bytes);
+    await _api.patch(_chat(code), {'photoUrl': key});
+  }
+
+  /// Owner only: takes a member out of the chat.
+  Future<void> removeMember(String code, String userId) =>
+      _api.delete('${_chat(code)}/members/$userId');
+
   // Messages
 
   /// Up to [limit] messages older than [before] (newest ones if null),

@@ -8,6 +8,10 @@ import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chat_watch.dart';
+import 'package:sinai/api/chats_api.dart';
+import 'package:sinai/api/current_user.dart';
 import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chat/chat_status.dart';
@@ -100,15 +104,17 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
   static const _dangerColor = Color(0xFFDC2626);
 
   // Live, so a new photo or a removed member shows at once.
-  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _chat =
-      FirebaseFirestore.instance
+  late final Stream<Map<String, dynamic>?> _chat = ApiConfig.useBackend
+      ? watchChat(widget.chatCode)
+      : FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatCode)
-          .snapshots();
+          .snapshots()
+          .map((doc) => doc.data());
   bool _copied = false;
   bool _uploadingPhoto = false;
 
-  String? get _me => FirebaseAuth.instance.currentUser?.uid;
+  String? get _me => currentUserId();
 
   /// Owner only: picks a photo and makes it the chat's picture.
   Future<void> _changePhoto(String? oldPhotoUrl) async {
@@ -122,6 +128,15 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
       );
       if (picked == null) return;
       setState(() => _uploadingPhoto = true);
+
+      if (ApiConfig.useBackend) {
+        await ChatsApi.instance.setPhoto(
+          widget.chatCode,
+          await picked.readAsBytes(),
+          picked.mimeType ?? 'image/jpeg',
+        );
+        return;
+      }
 
       final ref = FirebaseStorage.instance.ref(
         'chats/${widget.chatCode}/avatar/'
@@ -167,6 +182,10 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
     );
     if (!confirmed) return;
     try {
+      if (ApiConfig.useBackend) {
+        await ChatsApi.instance.removeMember(widget.chatCode, uid);
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatCode)
@@ -212,6 +231,10 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
     final trimmed = name?.trim() ?? '';
     if (trimmed.isEmpty || trimmed == current) return;
     try {
+      if (ApiConfig.useBackend) {
+        await ChatsApi.instance.rename(widget.chatCode, trimmed);
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatCode)
@@ -247,10 +270,13 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          child: StreamBuilder<Map<String, dynamic>?>(
             stream: _chat,
             builder: (context, snapshot) {
-              final data = snapshot.data?.data();
+              final data = snapshot.data;
+              // Names and online status, when the backend sends them.
+              final memberInfo =
+                  data?['members'] as Map<String, Map<String, dynamic>>?;
               final memberIds = ((data?['participantIds'] as List?) ?? [])
                   .whereType<String>()
                   .toList();
@@ -483,6 +509,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                           uid: uid,
                           isMe: uid == _me,
                           isOwner: uid == ownerId,
+                          info: memberInfo?[uid],
                           onRemove: isOwner && uid != _me
                               ? (name) => _removeMember(uid, name)
                               : null,
@@ -561,7 +588,12 @@ class _MemberRow extends StatelessWidget {
     required this.isMe,
     required this.isOwner,
     required this.onRemove,
+    this.info,
   });
+
+  /// Name and online status from the backend; null reads them from
+  /// Firebase instead.
+  final Map<String, dynamic>? info;
 
   final String uid;
   final String chatCode;
@@ -576,8 +608,17 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colorTheme;
-    final text = context.textTheme;
+    final known = info;
+    if (known != null) {
+      final given = (known['name'] as String?) ?? '';
+      final name = given.isNotEmpty ? given : (isMe ? 'You' : 'Member');
+      return _content(
+        context,
+        name,
+        known['online'] == true,
+        known['lastSeen'] as DateTime?,
+      );
+    }
 
     // Members on older app versions don't publish their name in presence;
     // fall back to the name on one of their messages in this chat.
@@ -609,97 +650,103 @@ class _MemberRow extends StatelessWidget {
                   : (nameSnap.data?.isNotEmpty ?? false
                       ? nameSnap.data!
                       : 'Member'));
-          final status = presence.online
-              ? 'online'
-              : presence.lastSeen == null
-                  ? null
-                  : ChatStatusController.lastSeenText(presence.lastSeen!);
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                Stack(
-                  children: [
-                    ChatAvatar(title: name, size: 40),
-                    if (presence.online && !isMe)
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF22C55E),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: colors.backgroundSecondary,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isMe ? '$name (you)' : name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: text.bodyLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (status != null && !isMe)
-                        Text(
-                          status,
-                          style: text.bodySmall.copyWith(
-                            fontSize: 12,
-                            color: presence.online
-                                ? colors.secondary
-                                : colors.textSecondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                if (isOwner)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: colors.secondary.withAlpha(40),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'owner',
-                      style: text.bodySmall.copyWith(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: colors.secondary,
-                      ),
-                    ),
-                  ),
-                if (onRemove != null)
-                  IconButton(
-                    tooltip: 'Remove $name',
-                    icon: Icon(
-                      AppIcons.userMinus,
-                      size: 20,
-                      color: colors.textSecondary,
-                    ),
-                    onPressed: () => onRemove!(name),
-                  ),
-              ],
-            ),
-          );
+          return _content(context, name, presence.online, presence.lastSeen);
         },
       ),
     );
   }
-}
 
+  Widget _content(
+    BuildContext context,
+    String name,
+    bool online,
+    DateTime? lastSeen,
+  ) {
+    final colors = context.colorTheme;
+    final text = context.textTheme;
+    final status = online
+        ? 'online'
+        : lastSeen == null
+            ? null
+            : ChatStatusController.lastSeenText(lastSeen);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Stack(
+            children: [
+              ChatAvatar(title: name, size: 40),
+              if (online && !isMe)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colors.backgroundSecondary,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isMe ? '$name (you)' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (status != null && !isMe)
+                  Text(
+                    status,
+                    style: text.bodySmall.copyWith(
+                      fontSize: 12,
+                      color: online ? colors.secondary : colors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (isOwner)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: colors.secondary.withAlpha(40),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'owner',
+                style: text.bodySmall.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colors.secondary,
+                ),
+              ),
+            ),
+          if (onRemove != null)
+            IconButton(
+              tooltip: 'Remove $name',
+              icon: Icon(
+                AppIcons.userMinus,
+                size: 20,
+                color: colors.textSecondary,
+              ),
+              onPressed: () => onRemove!(name),
+            ),
+        ],
+      ),
+    );
+  }
+}
