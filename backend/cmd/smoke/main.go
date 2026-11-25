@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -50,11 +51,57 @@ func check(name string, ok bool, detail ...any) {
 	fmt.Println(mark, name, fmt.Sprint(detail...))
 }
 
+// fakeFCM stands in for Firebase: it records pushes, and refuses the
+// token "dead-token" as unregistered.
+type push struct {
+	Token, Title, Body string
+}
+
+func fakeFCM() chan push {
+	got := make(chan push, 50)
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /send", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Message struct {
+				Token        string            `json:"token"`
+				Notification map[string]string `json:"notification"`
+			} `json:"message"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		m := body.Message
+		if m.Token == "dead-token" {
+			w.WriteHeader(404)
+			w.Write([]byte(`{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}`))
+			return
+		}
+		got <- push{m.Token, m.Notification["title"], m.Notification["body"]}
+		w.Write([]byte(`{"name":"ok"}`))
+	})
+	go http.ListenAndServe("localhost:9099", mux)
+	return got
+}
+
 func main() {
+	pushes := fakeFCM()
+	// nextPush waits for a push to token whose body contains want.
+	nextPush := func(token, want string) *push {
+		for {
+			select {
+			case p := <-pushes:
+				if p.Token == token && strings.Contains(p.Body, want) {
+					return &p
+				}
+			case <-time.After(3 * time.Second):
+				return nil
+			}
+		}
+	}
+
 	_, a, _ := call("POST", "/v1/auth/guest", "", map[string]any{"name": "Alice"})
 	_, b, _ := call("POST", "/v1/auth/guest", "", map[string]any{"name": "Bob"})
 	ta, tb := a["accessToken"].(string), b["accessToken"].(string)
 	bobID := b["user"].(map[string]any)["id"].(string)
+	aliceID := a["user"].(map[string]any)["id"].(string)
 
 	// Bob listens for live events.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -96,7 +143,14 @@ func main() {
 	st, joined, _ := call("POST", "/v1/chats/"+code+"/join", tb, nil)
 	check("bob joins by code", st == 200 && len(joined["members"].([]any)) == 2)
 
+	st, _, _ = call("PUT", "/v1/devices", tb, map[string]any{"token": "bob-phone", "platform": "ios"})
+	check("bob registers his phone", st == 204, st)
+	call("PUT", "/v1/devices", ta, map[string]any{"token": "alice-phone", "platform": "android"})
+	call("PUT", "/v1/devices", tb, map[string]any{"token": "dead-token", "platform": "android"})
+
 	st, msg, _ := call("POST", "/v1/chats/"+code+"/messages", ta, map[string]any{"text": "Привет!"})
+	p := nextPush("bob-phone", "Привет")
+	check("bob gets a push", p != nil && p.Title == "Куда" && p.Body == "Alice: Привет!", p)
 	check("alice sends", st == 201 && msg["senderName"] == "Alice")
 	e := next("message.created")
 	check("bob gets it live", e != nil && e["data"].(map[string]any)["text"] == "Привет!")
@@ -119,6 +173,8 @@ func main() {
 
 	st, reacted, _ := call("PUT", "/v1/chats/"+code+"/messages/"+msg["id"].(string)+"/reaction", tb, map[string]any{"emoji": "❤️"})
 	check("bob reacts", st == 200 && reacted["reactions"].(map[string]any)[bobID] == "❤️")
+	p = nextPush("alice-phone", "reacted")
+	check("alice gets the reaction push", p != nil && strings.HasPrefix(p.Body, "Bob reacted ❤️"), p)
 
 	st, _, _ = call("PATCH", "/v1/chats/"+code+"/messages/"+msg["id"].(string), tb, map[string]any{"text": "hack"})
 	check("bob can't edit alice's message", st == 404, st)
@@ -141,6 +197,23 @@ func main() {
 	check("bob can't rename", st == 403, st)
 	st, _, _ = call("PATCH", "/v1/chats/"+code, tb, map[string]any{"game": map[string]any{"pick": "chess"}})
 	check("bob can set the game", st == 200)
+	call("PATCH", "/v1/chats/"+code, ta, map[string]any{"game": map[string]any{
+		"type": "chess", "by": aliceID, "event": "start", "at": 1, "white": aliceID,
+		"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}})
+	p = nextPush("bob-phone", "invites")
+	check("bob is invited to play", p != nil && p.Body == "Alice invites you to play chess", p)
+	call("PATCH", "/v1/chats/"+code, tb, map[string]any{"game": map[string]any{
+		"type": "chess", "by": bobID, "event": "move", "at": 2, "white": aliceID, "black": bobID,
+		"fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"}})
+	p = nextPush("alice-phone", "move")
+	check("alice told it's her turn", p != nil && p.Body == "Bob made a move in chess. Your turn!", p)
+
+	st, _, _ = call("POST", "/v1/chats/"+code+"/messages", ta, map[string]any{"text": "again"})
+	nextPush("bob-phone", "again")
+	time.Sleep(300 * time.Millisecond)
+	out, _ := exec.Command("docker", "compose", "exec", "-T", "postgres", "psql", "-U", "sinai", "-tAc",
+		"select count(*) from device_tokens where token = 'dead-token'").Output()
+	check("dead token forgotten", strings.TrimSpace(string(out)) == "0", string(out))
 
 	// Files: get an upload URL, PUT the bytes, send the message with it.
 	st, up, _ := call("POST", "/v1/chats/"+code+"/uploads", ta,

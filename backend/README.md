@@ -42,6 +42,8 @@ The schema in `internal/db/migrations` is applied on start.
 | DELETE | `/v1/chats/{code}/messages/{id}/reaction` | ✓ | Remove reaction    |
 | POST   | `/v1/chats/{code}/uploads` | ✓ | `{kind, contentType}` → signed PUT URL and key |
 | GET    | `/v1/files/{key}`  | ✓    | Redirects a chat member to the file    |
+| PUT    | `/v1/devices`      | ✓    | `{token, platform}` → push this phone  |
+| DELETE | `/v1/devices/{token}` | ✓ | Stop pushing this phone (sign-out)     |
 | GET    | `/v1/ws`           | ✓    | WebSocket of live events               |
 
 Authenticated requests send `Authorization: Bearer <accessToken>`. Access
@@ -56,9 +58,22 @@ tokens last 15 minutes; refresh tokens 30 days and work once each.
 `{"type":"typing","chat":"CODE"}` while typing. Events go through Redis,
 so they reach users on any server instance.
 
+## Pushes
+
+Sent through FCM, which also reaches iPhones via the APNs key already set
+up in Firebase. Set `FCM_CREDENTIALS_FILE` to a Firebase service account
+key; without it pushes are off. Phones get pushes for new messages,
+reactions to their messages, game invites, their turn and game results.
+Tokens FCM reports as gone are forgotten.
+
 ## Smoke test
 
-With the server running: `go run ./cmd/smoke`.
+Runs everything end to end, with a stand-in for FCM on :9099:
+
+```bash
+FCM_TEST_ENDPOINT=http://localhost:9099/send go run ./cmd/server &
+go run ./cmd/smoke
+```
 
 ## Files
 

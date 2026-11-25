@@ -9,6 +9,7 @@ import (
 
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/chats"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/httpapi"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/push"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/storage"
 )
@@ -21,6 +22,9 @@ type Handler struct {
 	events   chats.Publisher
 	files    *storage.Storage
 	userID   func(*http.Request) string
+
+	// Notifies phones of new messages and reactions; nil sends nothing.
+	Push *push.Service
 }
 
 func NewHandler(messages *Store, chatStore *chats.Store, events chats.Publisher, files *storage.Storage, userID func(*http.Request) string) *Handler {
@@ -162,6 +166,7 @@ func (h *Handler) send(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	h.notify(r.Context(), "message.created", m)
+	h.pushMessage(r.Context(), m)
 	return httpapi.WriteJSON(w, http.StatusCreated, withURLs(m))
 }
 
@@ -224,14 +229,62 @@ func (h *Handler) unreact(w http.ResponseWriter, r *http.Request) error {
 	return h.setReaction(w, r, "")
 }
 
+// pushMessage tells everyone else in the chat about a new message.
+func (h *Handler) pushMessage(ctx context.Context, m Message) {
+	if h.Push == nil || m.SenderID == nil {
+		return
+	}
+	c, err := h.chats.Get(ctx, m.ChatCode, *m.SenderID)
+	if err != nil {
+		return
+	}
+	var to []string
+	for _, member := range c.Members {
+		if member.UserID != *m.SenderID {
+			to = append(to, member.UserID)
+		}
+	}
+	what := push.Describe(m.Text, m.ImageURL != nil, m.AudioURL != nil)
+	h.Push.ToUsers(to, push.NewMessage(c.Code, c.Name, m.SenderName, what))
+}
+
+// pushReaction tells the author when someone else reacts to their message.
+func (h *Handler) pushReaction(ctx context.Context, m Message, reactorID, emoji string) {
+	if h.Push == nil || m.SenderID == nil || *m.SenderID == reactorID {
+		return
+	}
+	c, err := h.chats.Get(ctx, m.ChatCode, reactorID)
+	if err != nil {
+		return
+	}
+	var reactor string
+	for _, member := range c.Members {
+		if member.UserID == reactorID {
+			reactor = member.Name
+		}
+	}
+	quoted := push.Describe(m.Text, m.ImageURL != nil, m.AudioURL != nil)
+	h.Push.ToUsers([]string{*m.SenderID},
+		push.Reaction(c.Code, c.Name, m.ID, reactor, emoji, quoted))
+}
+
 func (h *Handler) setReaction(w http.ResponseWriter, r *http.Request, emoji string) error {
 	chat, err := h.member(r)
 	if err != nil {
 		return err
 	}
-	m, err := h.messages.React(r.Context(), chat, r.PathValue("id"), h.userID(r), emoji)
+	me := h.userID(r)
+	previous := ""
+	if old, err := h.messages.get(r.Context(), r.PathValue("id")); err == nil {
+		previous = old.Reactions[me]
+	}
+	m, err := h.messages.React(r.Context(), chat, r.PathValue("id"), me, emoji)
 	if err != nil {
 		return err
+	}
+	// Only a new or changed reaction notifies, not removing one.
+	if emoji != "" && emoji != previous {
+		h.pushReaction(r.Context(), m, me, emoji)
 	}
 	h.notify(r.Context(), "message.updated", m)
 	return httpapi.WriteJSON(w, http.StatusOK, withURLs(m))

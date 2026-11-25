@@ -19,6 +19,7 @@ import (
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/config"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/db"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/messages"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/push"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/storage"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/users"
@@ -60,6 +61,22 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	var sender push.Sender
+	if cfg.FCMTestEndpoint != "" {
+		sender = push.NewFCMAt(cfg.FCMTestEndpoint, http.DefaultClient)
+	} else if cfg.FCMCredentialsFile != "" {
+		key, err := os.ReadFile(cfg.FCMCredentialsFile)
+		if err != nil {
+			return err
+		}
+		if sender, err = push.NewFCM(ctx, key); err != nil {
+			return err
+		}
+	} else {
+		slog.Warn("FCM_CREDENTIALS_FILE not set: pushes are off")
+	}
+	pushes := push.NewService(pool, sender)
 
 	authService := auth.NewService(pool, cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
 	userStore := users.NewStore(pool)
@@ -125,8 +142,12 @@ func run() error {
 	users.NewHandler(userStore, userID).Register(mux, authService.Require)
 	chatHandler := chats.NewHandler(chatStore, bus, files, userID)
 	chatHandler.Online = presence.Online
+	chatHandler.Push = pushes
 	chatHandler.Register(mux, authService.Require)
-	messages.NewHandler(messageStore, chatStore, bus, files, userID).Register(mux, authService.Require)
+	messageHandler := messages.NewHandler(messageStore, chatStore, bus, files, userID)
+	messageHandler.Push = pushes
+	messageHandler.Register(mux, authService.Require)
+	push.NewHandler(pushes, userID).Register(mux, authService.Require)
 	storage.NewHandler(files, chatStore.IsMember, userID).Register(mux, authService.Require)
 
 	// The live connection. Apps send the access token in the header;

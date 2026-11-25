@@ -17,6 +17,10 @@ type Config struct {
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 	Storage         StorageConfig
+	// Firebase service account key file for pushes; empty turns them off.
+	FCMCredentialsFile string
+	// Sends pushes to this address unsigned instead; for tests only.
+	FCMTestEndpoint string
 }
 
 type StorageConfig struct {
@@ -49,6 +53,8 @@ func Load() (Config, error) {
 		JWTSecret:       []byte(os.Getenv("JWT_SECRET")),
 		AccessTokenTTL:  accessTTL,
 		RefreshTokenTTL: refreshTTL,
+		FCMCredentialsFile: os.Getenv("FCM_CREDENTIALS_FILE"),
+		FCMTestEndpoint:    os.Getenv("FCM_TEST_ENDPOINT"),
 		Storage: StorageConfig{
 			Endpoint:       env("S3_ENDPOINT", "localhost:8333"),
 			PublicEndpoint: os.Getenv("S3_PUBLIC_ENDPOINT"),

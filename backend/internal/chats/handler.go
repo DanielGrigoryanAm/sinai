@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/httpapi"
+	"github.com/DanielGrigoryanAm/sinai/backend/internal/push"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/realtime"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/storage"
 	"github.com/DanielGrigoryanAm/sinai/backend/internal/users"
@@ -21,6 +22,9 @@ type Handler struct {
 	events Publisher
 	files  *storage.Storage
 	userID func(*http.Request) string
+
+	// Notifies phones of game invites and moves; nil sends nothing.
+	Push *push.Service
 
 	// Reports which users are online; members are marked with it.
 	Online func(ctx context.Context, ids []string) map[string]bool
@@ -153,12 +157,42 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
 		}
 		body.PhotoURL = &key
 	}
+	var before map[string]any
+	if body.Game != nil {
+		if old, err := h.chats.Get(r.Context(), code(r), h.userID(r)); err == nil {
+			before, _ = old.Game.(map[string]any)
+		}
+	}
 	c, err := h.chats.Update(r.Context(), code(r), h.userID(r), body.Name, body.PhotoURL, body.Game)
 	if err != nil {
 		return err
 	}
+	if after, ok := c.Game.(map[string]any); ok && body.Game != nil {
+		h.pushGame(c, h.userID(r), before, after)
+	}
 	h.changed(r.Context(), c)
 	return httpapi.WriteJSON(w, http.StatusOK, out(c))
+}
+
+// pushGame tells the other players about a game started or a move made.
+func (h *Handler) pushGame(c Chat, actorID string, before, after map[string]any) {
+	if h.Push == nil {
+		return
+	}
+	var actor string
+	members := make([]string, len(c.Members))
+	for i, m := range c.Members {
+		members[i] = m.UserID
+		if m.UserID == actorID {
+			actor = m.Name
+		}
+	}
+	if before == nil {
+		before = map[string]any{}
+	}
+	if n, to, ok := push.Game(c.Code, c.Name, actor, members, before, after); ok {
+		h.Push.ToUsers(to, n)
+	}
 }
 
 func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) error {
