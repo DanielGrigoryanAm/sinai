@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/widgets.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/features/presence/realtime_db.dart';
 
-/// Tells the other participants of a chat that the user is typing, via
-/// `typing/{chatId}/{uid}` in the Realtime Database.
+/// Tells the other participants of a chat that the user is typing: over
+/// the live socket on the backend, via `typing/{chatId}/{uid}` in the
+/// Realtime Database on Firebase.
 ///
 /// The mark is refreshed while the message field has text and removed
 /// when the field is cleared, after a pause in typing, when the chat is
@@ -48,6 +51,13 @@ class TypingReporter {
   }
 
   Future<void> _mark() async {
+    // On the backend the mark goes over the socket and fades on its own
+    // on the other phones after a few seconds without a new one.
+    if (ApiConfig.useBackend) {
+      _marked = true;
+      LiveSocket.instance.sendTyping(chatCode);
+      return;
+    }
     final ref = _ref;
     if (ref == null) return;
     final name = FirebaseAuth.instance.currentUser?.displayName?.trim();
@@ -68,6 +78,10 @@ class TypingReporter {
     _lastSent = null;
     if (!_marked) return;
     _marked = false;
+    if (ApiConfig.useBackend) {
+      LiveSocket.instance.sendTypingStopped(chatCode);
+      return;
+    }
     final ref = _ref;
     if (ref == null) return;
     try {

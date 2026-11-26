@@ -32,13 +32,16 @@ void main() async {
   if (ApiConfig.useBackend) {
     try {
       await AuthApi.instance.ensureSignedIn();
-      LiveSocket.instance.start();
+      LiveSocket.instance
+        ..start()
+        ..followAppLifecycle();
     } catch (e) {
       debugPrint('Backend sign-in failed: $e');
     }
   }
 
-  PresenceService.instance.start();
+  // On the backend, being online is having the live socket open.
+  if (!ApiConfig.useBackend) PresenceService.instance.start();
   await DraftStore.instance.load();
   await ThemeStore.instance.load();
 

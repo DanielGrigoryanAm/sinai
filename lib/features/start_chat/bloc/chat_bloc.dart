@@ -84,7 +84,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> with _BackendChats {
       // Kept in step on the backend while both are in use.
       if (ApiConfig.useBackend) await AuthApi.instance.rename(event.name);
       await OnboardingPrefs.setNameConfirmed();
-      await PresenceService.instance.refreshName();
+      if (!ApiConfig.useBackend) await PresenceService.instance.refreshName();
       emit(UserNameSaved(event.name));
     } catch (e) {
       emit(ChatError('Failed to save user name'));

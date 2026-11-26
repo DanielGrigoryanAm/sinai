@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/api_config.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -48,6 +48,13 @@ class LiveSocket {
   Stream<LiveEvent> eventsOf(String chat) =>
       events.where((e) => e.chat == chat || e.type == LiveEvent.reconnected);
 
+  /// Closes the socket while the app is in the background and opens it
+  /// again on return, so others see the user go offline at once, as with
+  /// "last seen" in other messengers.
+  void followAppLifecycle() {
+    WidgetsBinding.instance.addObserver(_LifecycleObserver(this));
+  }
+
   /// Opens the connection and keeps it open until [stop].
   void start() {
     if (_wanted) return;
@@ -67,6 +74,10 @@ class LiveSocket {
 
   /// Tells the others in [chat] that the user is typing.
   void sendTyping(String chat) => _send({'type': 'typing', 'chat': chat});
+
+  /// Tells them the user stopped, so it doesn't linger on their screens.
+  void sendTypingStopped(String chat) =>
+      _send({'type': 'typing.stop', 'chat': chat});
 
   void _send(Map<String, String> message) {
     if (connected.value) _channel?.sink.add(jsonEncode(message));
@@ -133,5 +144,24 @@ class LiveSocket {
     _failures++;
     final jitter = math.Random().nextInt(1000);
     _retry = Timer(Duration(seconds: seconds, milliseconds: jitter), _connect);
+  }
+}
+
+class _LifecycleObserver with WidgetsBindingObserver {
+  _LifecycleObserver(this.socket);
+
+  final LiveSocket socket;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        socket.start();
+      case AppLifecycleState.paused || AppLifecycleState.detached:
+        socket.stop();
+      case AppLifecycleState.inactive || AppLifecycleState.hidden:
+        // Brief: a call banner, the app switcher. Stays connected.
+        break;
+    }
   }
 }

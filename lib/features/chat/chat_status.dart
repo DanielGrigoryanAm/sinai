@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/presence/presence_service.dart';
 import 'package:sinai/features/presence/realtime_db.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chat_watch.dart';
+import 'package:sinai/api/current_user.dart';
+import 'package:sinai/api/live_socket.dart';
 
 /// The line under a chat's title: who is typing, or whether the other
 /// person is online, or how many members are online.
@@ -26,6 +29,12 @@ class ChatStatus {
 /// into a [ChatStatus].
 class ChatStatusController {
   ChatStatusController(this.chatCode) {
+    // Typing and "online" expire with time, not only with new data.
+    _ticker = Timer.periodic(const Duration(seconds: 5), (_) => _update());
+    if (ApiConfig.useBackend) {
+      _watchBackend();
+      return;
+    }
     _chatSubscription = FirebaseFirestore.instance
         .collection('chats')
         .doc(chatCode)
@@ -34,8 +43,48 @@ class ChatStatusController {
     _typingSubscription = RealtimeDb.typing(chatCode)
         .onValue
         .listen(_onTyping, onError: (Object _) {});
-    // Typing and "online" expire with time, not only with new data.
-    _ticker = Timer.periodic(const Duration(seconds: 5), (_) => _update());
+  }
+
+  /// On the backend the live chat view brings members with their online
+  /// status, and the socket brings typing marks.
+  void _watchBackend() {
+    _chatSubscription = watchChat(chatCode).listen((data) {
+      if (data == null) return;
+      final members = data['members'] as Map<String, Map<String, dynamic>>;
+      final others = members.keys.where((uid) => uid != _me).toList();
+      if (!_sameMembers(others)) _others = others;
+      _presence
+        ..clear()
+        ..addAll({
+          for (final uid in others)
+            uid: Presence(
+              online: members[uid]!['online'] == true,
+              lastSeen: members[uid]!['lastSeen'] as DateTime?,
+              name: members[uid]!['name'] as String?,
+            ),
+        });
+      _update();
+    });
+    _typingSubscription = LiveSocket.instance.eventsOf(chatCode).listen((e) {
+      final data = e.data is Map ? e.data as Map : const {};
+      final uid = data['userId'] ?? data['senderId'];
+      if (uid is! String || uid == _me) return;
+      switch (e.type) {
+        case 'typing':
+          final name = data['name'] as String?;
+          _typing[uid] = (
+            name: name == null || name.isEmpty ? 'Someone' : name,
+            stamp: null,
+            seenAt: DateTime.now(),
+          );
+        // Stopped typing, or sent what they typed.
+        case 'typing.stop' || 'message.created':
+          _typing.remove(uid);
+        default:
+          return;
+      }
+      _update();
+    });
   }
 
   /// A typing mark counts while it was refreshed this recently. Measured
@@ -58,7 +107,7 @@ class ChatStatusController {
   final Map<String, ({String name, Object? stamp, DateTime seenAt})> _typing =
       {};
 
-  String? get _me => FirebaseAuth.instance.currentUser?.uid;
+  String? get _me => currentUserId();
 
   void _onChat(DocumentSnapshot<Map<String, dynamic>> snapshot) {
     final data = snapshot.data();

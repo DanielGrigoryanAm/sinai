@@ -7,12 +7,16 @@ library;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sinai/api/api_client.dart';
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/chats_api.dart';
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import 'package:sinai/features/chat/chat_status.dart';
+import 'package:sinai/features/chat/typing_reporter.dart';
 import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/api/media_url.dart';
 import 'package:sinai/api/session_store.dart';
@@ -237,5 +241,74 @@ void main() {
 
     await api.deleteOrLeave(code, isOwner: true);
     await api.deleteOrLeave(other, isOwner: true);
+  }, skip: enabled ? false : 'needs a backend; see the top of the file');
+
+  test('status line: online, typing, last seen', () async {
+    final alice = ApiClient.instance;
+    if (!alice.isSignedIn) {
+      FlutterSecureStorage.setMockInitialValues({});
+      await alice.startSession(await alice.postPublic(
+          '/v1/auth/guest', {'name': 'Alice'}) as Map<String, dynamic>);
+    }
+    LiveSocket.instance.start();
+    for (var i = 0; i < 50 && !LiveSocket.instance.connected.value; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    final bob = ApiClient(store: MemoryStore());
+    await bob.startSession(await bob.postPublic(
+        '/v1/auth/guest', {'name': 'Bob'}) as Map<String, dynamic>);
+    final code = await ChatsApi.instance.create('Status test');
+    await bob.post('/v1/chats/$code/join');
+
+    final status = ChatStatusController(code);
+    Future<void> until(bool Function(ChatStatus?) f) async {
+      final done = Completer<void>();
+      void check() {
+        if (f(status.status.value) && !done.isCompleted) done.complete();
+      }
+      status.status.addListener(check);
+      check();
+      await done.future.timeout(const Duration(seconds: 8));
+      status.status.removeListener(check);
+    }
+
+    final bobSocket = LiveSocket(bob)..start();
+    await until((s) => s?.text == 'online');
+
+    bobSocket.sendTyping(code);
+    await until((s) => s?.typing == true && s?.text == 'typing…');
+    bobSocket.sendTypingStopped(code);
+    await until((s) => s?.text == 'online');
+
+    // Sending clears it too.
+    bobSocket.sendTyping(code);
+    await until((s) => s?.typing == true);
+    await bob.post('/v1/chats/$code/messages', {'text': 'готово'});
+    await until((s) => s?.text == 'online');
+
+    await bobSocket.stop();
+    await until((s) => s?.text == 'last seen just now');
+
+    // Alice typing reaches Bob through TypingReporter.
+    final bobEvents = LiveSocket(bob)..start();
+    final heard = bobEvents.eventsOf(code).firstWhere((e) => e.type == 'typing');
+    for (var i = 0; i < 50 && !bobEvents.connected.value; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    final field = TextEditingController();
+    final reporter = TypingReporter(chatCode: code, controller: field);
+    field.text = 'Прив';
+    final typed = await heard.timeout(const Duration(seconds: 5));
+    expect(typed.data['name'], 'Alice');
+    final stopped =
+        bobEvents.eventsOf(code).firstWhere((e) => e.type == 'typing.stop');
+    field.clear();
+    await stopped.timeout(const Duration(seconds: 5));
+
+    reporter.dispose();
+    status.dispose();
+    await bobEvents.stop();
+    await ChatsApi.instance.deleteOrLeave(code, isOwner: true);
+    await LiveSocket.instance.stop();
   }, skip: enabled ? false : 'needs a backend; see the top of the file');
 }

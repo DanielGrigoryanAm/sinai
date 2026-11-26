@@ -439,6 +439,14 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       _emitChatsList(emit);
       return;
     }
+    // Stopped typing, or sent the message: the row shows it at once.
+    if ((e.type == 'typing.stop' || e.type == 'message.created') &&
+        e.chat != null &&
+        _typingInList.remove(e.chat) != null) {
+      _typingTimers.remove(e.chat)?.cancel();
+      _emitChatsList(emit);
+    }
+    if (e.type == 'typing.stop') return;
 
     // The list follows anything that changes a chat's row.
     if (e.type.startsWith('message.') ||
