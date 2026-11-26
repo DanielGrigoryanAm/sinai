@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
+import 'package:sinai/features/chat/widgets/link_player.dart';
 import 'package:sinai/features/chat/widgets/link_text.dart';
 import 'package:sinai/features/chat/widgets/message_menu.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
@@ -215,15 +216,19 @@ class MessageBubble extends StatelessWidget {
   Widget _withLinkPreview(Widget content) {
     final uri = firstLink(message.text);
     if (uri == null) return content;
+    // A video link gets its player above the text instead of a card.
+    final video = LinkVideo.of(uri);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        if (video != null) LinkPlayer(video: video),
         content,
-        LinkPreview(
-          uri: uri,
-          accent: isMe ? const Color(0xFF1D5FA8) : const Color(0xFFB8860B),
-        ),
+        if (video == null)
+          LinkPreview(
+            uri: uri,
+            accent: isMe ? const Color(0xFF1D5FA8) : const Color(0xFFB8860B),
+          ),
         if (youtubeId(uri.toString()) case final id?
             when onWatchTogether != null)
           Padding(
