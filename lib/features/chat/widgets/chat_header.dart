@@ -377,16 +377,22 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   /// Vertical travel of the current drag.
   double _gestureDy = 0;
 
-  /// Hops the notch down every second while a game waits on the user.
+  /// Hops the notch down every 10 seconds while a game or a video waits
+  /// on the user; each hop takes 300 ms.
+  static const _hopEvery = Duration(seconds: 10);
+  static const _hopUp = 300 / 10000;
+
   late final AnimationController _hop = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 1),
-  )..addListener(() => setState(() {}));
+    duration: _hopEvery,
+  )..addListener(() {
+      // Rebuilds only during the hop, not for the rest of the wait.
+      if (_hop.value < _hopUp * 1.2) setState(() {});
+    });
 
   double get _hopOffset {
-    const up = 0.3;
     final t = _hop.value;
-    return t < up ? 16 * math.sin(math.pi * t / up) : 0;
+    return t < _hopUp ? 16 * math.sin(math.pi * t / _hopUp) : 0;
   }
 
   void _syncHop() {
