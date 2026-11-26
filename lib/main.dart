@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/live_socket.dart';
@@ -19,6 +20,8 @@ late final AppRouter appRouter;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Portrait only; the watch-together player turns to landscape itself.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );

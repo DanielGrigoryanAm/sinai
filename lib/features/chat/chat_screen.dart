@@ -25,6 +25,7 @@ import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/features/chat/widgets/watch_together.dart';
 
 @RoutePage()
 class ChatScreen extends StatelessWidget {
@@ -468,6 +469,9 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                                         : () => _reply(message),
                                     // Only text can be edited; photos and voice
                                     // messages are deleted and sent again.
+                                    onWatchTogether: (videoId) =>
+                                        watchTogether(widget.chatCode, videoId)
+                                            .catchError((Object _) {}),
                                     onForward: message.createdAt == null
                                         ? null
                                         : () => forwardMessage(

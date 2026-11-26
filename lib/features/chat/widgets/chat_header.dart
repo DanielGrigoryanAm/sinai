@@ -3,12 +3,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/features/chat/widgets/notch_extras.dart';
 import 'package:sinai/features/chat/widgets/notch_menu.dart';
+import 'package:sinai/features/chat/widgets/watch_together.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/api/chat_watch.dart';
@@ -131,6 +133,15 @@ class _ChatHeaderState extends State<ChatHeader> {
               chat: _chat,
               chessSize: chessSize,
             ),
+            watchPanel: (width) => WatchPanel(
+              chatCode: widget.chatCode,
+              chat: _chat,
+              width: width,
+            ),
+            watchWidth: chessSize,
+            chat: _chat,
+            watching: WatchState.fromChat(_chat) != null,
+            chatCode: widget.chatCode,
             onStartGame: (type) =>
                 ChatGames.startType(widget.chatCode, type).catchError((_) {}),
             status: status,
@@ -232,6 +243,11 @@ class _Notch extends StatefulWidget {
     required this.wide,
     required this.board,
     required this.onStartGame,
+    required this.watchPanel,
+    required this.watchWidth,
+    required this.chat,
+    required this.watching,
+    required this.chatCode,
     required this.status,
     required this.waiting,
     required this.playing,
@@ -259,6 +275,19 @@ class _Notch extends StatefulWidget {
 
   /// A game was picked in the pulled-down menu.
   final ValueChanged<ChatGameType> onStartGame;
+
+  /// The YouTube panel: a link to paste, or the shared player.
+  final Widget Function(double width) watchPanel;
+  final double watchWidth;
+
+  /// The chat as last loaded, handed to full screen.
+  final Map<String, dynamic>? chat;
+
+  /// The chat is watching a video together.
+  final bool watching;
+
+  /// To answer requests to open the player for this chat.
+  final String chatCode;
 
   /// A game waits on this user: the notch hops to say so.
   final bool waiting;
@@ -301,6 +330,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    watchOpenRequests.addListener(_onWatchRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncHop();
     });
@@ -338,6 +368,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   /// The icon menu (games, YouTube), when no game is being played.
   bool _showMenu = false;
 
+  /// The YouTube panel.
+  bool _showWatch = false;
+
   /// Restart and cancel buttons under a game being played.
   bool _showActions = false;
 
@@ -357,7 +390,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   }
 
   void _syncHop() {
-    final hop = widget.waiting && !_showBoard;
+    // A game waiting on the user, or a video the chat watches without them.
+    final hop =
+        (widget.waiting && !_showBoard) || (widget.watching && !_showWatch);
     if (hop && !_hop.isAnimating) {
       _hop.repeat();
     } else if (!hop && _hop.isAnimating) {
@@ -396,12 +431,26 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   double _stretchToDrag(double s) =>
       s <= 0 ? 0 : -_limit / 1.5 * math.log(1 - (s / _limit).clamp(0, 0.99));
 
+  /// How far past full size to pull the open video into full screen.
+  static const _fullscreenPull = 170.0;
+
+  /// The pull already went full screen; the rest of the gesture is ignored.
+  bool _gestureSpent = false;
+
+  /// How full the "pull for full screen" bar is.
+  double get _fullscreenProgress =>
+      ((_pull - _boardPeek) / (_fullscreenPull - _boardPeek)).clamp(0.0, 1.0);
+
+  bool get _pullingToFullscreen => _showWatch && widget.watching;
+
   void _update(DragUpdateDetails details) {
+    if (_gestureSpent) return;
     _drag = math.max(0, _drag + details.delta.dy);
     _gestureDy += details.delta.dy;
-    if ((_showBoard || _showMenu) && _gestureDy < -30) {
+    if ((_showBoard || _showMenu || _showWatch) && _gestureDy < -30) {
       _showBoard = false;
       _showMenu = false;
+      _showWatch = false;
       _showActions = false;
       _syncHop();
     }
@@ -409,12 +458,32 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
       _open.value = (_drag / _openDistance).clamp(0, 1);
       _pull = _dragToStretch(math.max(0, _drag - _openDistance));
     });
+    // Filled the bar: full screen right away, no need to let go.
+    if (_pullingToFullscreen && _pull >= _fullscreenPull) {
+      _gestureSpent = true;
+      HapticFeedback.mediumImpact();
+      _drag = 0;
+      _snapFrom = _pull;
+      _snap.forward(from: 0);
+      _openFullscreen();
+    }
   }
 
   void _release([DragEndDetails? details]) {
+    if (_gestureSpent) {
+      _gestureSpent = false;
+      return;
+    }
     _drag = 0;
     if (_pull > _boardPull) {
-      if (widget.playing) {
+      if (widget.watching && !_showWatch) {
+        // The video the chat is watching comes first.
+        _showWatch = true;
+        _showMenu = false;
+        _showBoard = false;
+      } else if (widget.watching && _showWatch) {
+        // Let go before the bar filled: nothing, it just springs back.
+      } else if (widget.playing) {
         // Already playing: the further pull brings up the game's buttons.
         if (_showBoard) _showActions = true;
         _showBoard = true;
@@ -441,6 +510,41 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
       _settle(true);
     } else {
       widget.onTap();
+    }
+  }
+
+  void _openWatch() {
+    setState(() {
+      _showWatch = true;
+      _showMenu = false;
+      _showBoard = false;
+    });
+    _settle(true);
+    _syncHop();
+  }
+
+  /// The video on the whole screen, sideways. The small player closes
+  /// meanwhile, so the sound doesn't play twice, and comes back after.
+  Future<void> _openFullscreen() async {
+    // The player moves to full screen in the same frame the notch lets go.
+    setState(() => _showWatch = false);
+    await WatchFullscreen.open(
+      context,
+      widget.chatCode,
+      chat: widget.chat,
+      onHandBack: () {
+        if (mounted) setState(() => _showWatch = widget.watching);
+      },
+    );
+    if (!mounted) return;
+    _syncHop();
+  }
+
+  /// "Watch together" under a link opens this chat's player.
+  void _onWatchRequest() {
+    if (watchOpenRequests.value == widget.chatCode.toUpperCase()) {
+      watchOpenRequests.value = null;
+      _openWatch();
     }
   }
 
@@ -499,6 +603,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    watchOpenRequests.removeListener(_onWatchRequest);
     _hop.dispose();
     _open.dispose();
     _snap.dispose();
@@ -513,14 +618,17 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     // While a game is on, pulling peeks at its board; otherwise at the
     // menu, unless a game was just picked.
     final peeking = _pull > _boardPeek;
-    final boardShown =
-        (widget.playing && peeking) || (_showBoard && !_showMenu);
-    final menuShown =
-        !boardShown && (_showMenu || (peeking && !widget.playing));
+    final watchShown = _showWatch;
+    final boardShown = !watchShown &&
+        ((widget.playing && peeking) || (_showBoard && !_showMenu));
+    final menuShown = !watchShown &&
+        !boardShown &&
+        (_showMenu || (peeking && !widget.playing));
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxWidth:
-            boardShown && widget.wide ? double.infinity : widget.narrowWidth,
+        maxWidth: (boardShown && widget.wide) || watchShown
+            ? double.infinity
+            : widget.narrowWidth,
       ),
       child: GestureDetector(
         onVerticalDragStart: _start,
@@ -570,7 +678,18 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
                                       GestureDetector(
                                         behavior: HitTestBehavior.opaque,
                                         onTap: () {},
-                                        child: NotchMenu(onGame: _startGame),
+                                        child: NotchMenu(
+                                          onGame: _startGame,
+                                          onYoutube: _openWatch,
+                                        ),
+                                      ),
+                                    if (watchShown)
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () {},
+                                        child: widget.watchPanel(
+                                          widget.watchWidth,
+                                        ),
                                       ),
                                     if (boardShown)
                                       // Taps on the game stay in the game instead of
@@ -607,6 +726,10 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
                         // shrinks below its own size.
                         SizedBox(
                           height: _pull.clamp(0, double.infinity) + _hopOffset,
+                          // With the video open, the pull says what it does.
+                          child: _pullingToFullscreen && _pull > _boardPeek
+                              ? _FullscreenHint(progress: _fullscreenProgress)
+                              : null,
                         ),
                         // A home-indicator bar hinting that it can be pulled.
                         Container(
@@ -782,4 +905,49 @@ class _ShadowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ShadowPainter oldDelegate) => oldDelegate.shape != shape;
+}
+
+/// "Pull down for full screen" with a bar that fills as the notch is
+/// pulled; full screen opens the moment it is full.
+class _FullscreenHint extends StatelessWidget {
+  const _FullscreenHint({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    final full = progress >= 1;
+    return Center(
+      child: Opacity(
+        opacity: (progress * 3).clamp(0.0, 1.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              full ? 'Opening full screen…' : 'Pull down for full screen',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: full ? const Color(0xFFFF0000) : colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 140,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 5,
+                  color: const Color(0xFFFF0000),
+                  backgroundColor: colors.border,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

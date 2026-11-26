@@ -13,6 +13,7 @@ import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/theme/theme_store.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/api/media_url.dart';
+import 'package:sinai/features/chat/widgets/watch_together.dart';
 
 /// A single chat message: bubble with the time inside and, for other
 /// people's messages, the sender name above the first one of a run.
@@ -27,6 +28,7 @@ class MessageBubble extends StatelessWidget {
     this.onReact,
     this.onReply,
     this.onForward,
+    this.onWatchTogether,
     this.onEdit,
     this.onDelete,
     this.onReplyTap,
@@ -66,6 +68,9 @@ class MessageBubble extends StatelessWidget {
   /// Message actions; each is null when it does not apply to this message.
   final VoidCallback? onReply;
   final VoidCallback? onForward;
+
+  /// Starts watching a YouTube video from this message with the chat.
+  final ValueChanged<String>? onWatchTogether;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -219,6 +224,12 @@ class MessageBubble extends StatelessWidget {
           uri: uri,
           accent: isMe ? const Color(0xFF1D5FA8) : const Color(0xFFB8860B),
         ),
+        if (youtubeId(uri.toString()) case final id?
+            when onWatchTogether != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: _WatchTogetherButton(onTap: () => onWatchTogether!(id)),
+          ),
       ],
     );
   }
@@ -1166,4 +1177,41 @@ class _EarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_EarPainter old) => old.color != color || old.isMe != isMe;
+}
+
+/// "Watch together" under a YouTube link: plays it for everyone in the
+/// chat, in the notch.
+class _WatchTogetherButton extends StatelessWidget {
+  const _WatchTogetherButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFF0000),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            Icon(AppIcons.youtube, size: 14, color: Colors.white),
+            Text(
+              'Watch together',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

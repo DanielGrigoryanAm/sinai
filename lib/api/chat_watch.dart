@@ -70,6 +70,11 @@ Map<String, dynamic> _shape(Map<String, dynamic> raw) {
     'ownerId': raw['ownerId'],
     'photoUrl': ChatsApi.fileUrl(raw['photoUrl']),
     'game': raw['game'],
+    'watch': raw['watch'],
+    // The server's clock and ours when this arrived, to read the server's
+    // clock later (see WatchState).
+    'serverTime': raw['serverTime'],
+    'receivedAt': DateTime.now().millisecondsSinceEpoch,
     'participantIds': members.keys.toList(),
     'members': members,
   };

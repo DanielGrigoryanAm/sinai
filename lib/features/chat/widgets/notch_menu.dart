@@ -7,10 +7,13 @@ import 'package:sinai/theme/color_theme.dart';
 /// YouTube. Games opens its own row (chess, tic-tac-toe, checkers) sliding
 /// in from the side while the rest slide away; a game starts when picked.
 class NotchMenu extends StatefulWidget {
-  const NotchMenu({super.key, required this.onGame});
+  const NotchMenu({super.key, required this.onGame, required this.onYoutube});
 
   /// A game was picked.
   final ValueChanged<ChatGameType> onGame;
+
+  /// YouTube was picked: watch a video together.
+  final VoidCallback onYoutube;
 
   @override
   State<NotchMenu> createState() => _NotchMenuState();
@@ -21,16 +24,10 @@ class _NotchMenuState extends State<NotchMenu> {
 
   static const _duration = Duration(milliseconds: 260);
 
-  void _soon(String what) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('$what is coming soon')));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      padding: const EdgeInsets.fromLTRB(3, 10, 3, 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -101,7 +98,7 @@ class _NotchMenuState extends State<NotchMenu> {
                           icon: AppIcons.youtube,
                           label: 'YouTube',
                           color: const Color(0xFFFF0000),
-                          onTap: () => _soon('YouTube'),
+                          onTap: widget.onYoutube,
                         ),
                       ],
                     ),
