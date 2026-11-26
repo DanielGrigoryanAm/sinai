@@ -27,9 +27,10 @@ class _NotchMenuState extends State<NotchMenu> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(3, 10, 3, 4),
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: 6,
         children: [
           // Stays put; tapping it again goes back.
           _MenuIcon(
@@ -68,6 +69,7 @@ class _NotchMenuState extends State<NotchMenu> {
                   ? Row(
                       key: const ValueKey(true),
                       mainAxisSize: MainAxisSize.min,
+                      spacing: 6,
                       children: [
                         const _Divider(),
                         _MenuIcon(
@@ -93,6 +95,7 @@ class _NotchMenuState extends State<NotchMenu> {
                   : Row(
                       key: const ValueKey(false),
                       mainAxisSize: MainAxisSize.min,
+                      spacing: 6,
                       children: [
                         _MenuIcon(
                           icon: AppIcons.youtube,
@@ -138,7 +141,6 @@ class _MenuIcon extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           width: 38,
           height: 38,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: color.withAlpha(selected ? 70 : 32),
@@ -159,7 +161,7 @@ class _Divider extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: 1,
         height: 20,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
+        margin: const EdgeInsets.symmetric(horizontal: 2),
         color: context.colorTheme.border,
       );
 }

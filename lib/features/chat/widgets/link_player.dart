@@ -162,7 +162,18 @@ class _YoutubeInlineState extends State<_YoutubeInline> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    videoHold.addListener(_onHold);
+  }
+
+  void _onHold() {
+    if (videoHold.value) _controller.pauseVideo();
+  }
+
+  @override
   void dispose() {
+    videoHold.removeListener(_onHold);
     _controller.close();
     super.dispose();
   }

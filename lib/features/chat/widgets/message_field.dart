@@ -4,6 +4,7 @@ import 'package:sinai/common/app_icons.dart';
 
 import 'package:flutter/material.dart';
 import 'package:sinai/common/toast.dart';
+import 'package:sinai/features/chat/widgets/watch_together.dart';
 import 'package:sinai/common/photo_compress.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -62,6 +63,7 @@ class _MessageFieldState extends State<MessageField> {
     widget.composer.removeListener(_onTextChanged);
     _recordingTicker?.cancel();
     if (_isRecording) _recorder.cancel();
+    videoHold.value = false;
     _recorder.dispose();
     super.dispose();
   }
@@ -76,6 +78,8 @@ class _MessageFieldState extends State<MessageField> {
         return;
       }
 
+      // Videos pause so they don't talk over the recording.
+      videoHold.value = true;
       final directory = await getTemporaryDirectory();
       final path =
           '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
@@ -101,11 +105,13 @@ class _MessageFieldState extends State<MessageField> {
       );
       setState(() => _isRecording = true);
     } catch (_) {
+      videoHold.value = false;
       showToast('Could not start recording', kind: ToastKind.error);
     }
   }
 
   void _stopRecordingTimer() {
+    videoHold.value = false;
     _recordingTicker?.cancel();
     _recordingTicker = null;
     _recordingTime.stop();

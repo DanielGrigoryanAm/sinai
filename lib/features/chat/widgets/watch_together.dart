@@ -94,6 +94,10 @@ abstract final class WatchStore {
       ApiClient.instance.patch(_path(chat), {'watch': <String, dynamic>{}});
 }
 
+/// Videos pause on this phone while it is true, e.g. while recording a
+/// voice message, and the shared one catches up with the chat after.
+final videoHold = ValueNotifier<bool>(false);
+
 /// Asks the open chat's notch to show the video, e.g. after "Watch
 /// together" under a link.
 final watchOpenRequests = ValueNotifier<String?>(null);
@@ -134,7 +138,7 @@ class WatchPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = WatchState.fromChat(chat);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(5, 10, 5, 4),
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 250),
         child: state == null
@@ -204,7 +208,7 @@ class _LinkFieldState extends State<_LinkField> {
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -283,6 +287,9 @@ class _WatchPlayerState extends State<_WatchPlayer> {
   /// The player refused to start on its own (phones need a tap for sound).
   bool _needsTap = false;
 
+  /// The state whose end this phone already reported.
+  int? _endedAt;
+
   /// Dragging the seek bar: it shows the finger, not the video.
   double? _seeking;
 
@@ -300,7 +307,11 @@ class _WatchPlayerState extends State<_WatchPlayer> {
       setState(() => _seconds = v.position.inMilliseconds / 1000);
     });
     _drift = Timer.periodic(const Duration(seconds: 2), (_) => _follow());
+    videoHold.addListener(_onHold);
   }
+
+  /// Paused only here while held; back in step with the chat after.
+  void _onHold() => videoHold.value ? _player.pauseVideo() : _follow();
 
   @override
   void didUpdateWidget(_WatchPlayer old) {
@@ -311,6 +322,7 @@ class _WatchPlayerState extends State<_WatchPlayer> {
   /// Brings the player to the chat's state: playing or paused, and at the
   /// right second if it is more than a moment off.
   Future<void> _follow() async {
+    if (videoHold.value) return;
     final s = widget.state;
     final player = _player.value.playerState;
     if (_duration == 0) {
@@ -318,6 +330,21 @@ class _WatchPlayerState extends State<_WatchPlayer> {
       if (mounted && d > 0) setState(() => _duration = d);
     }
     final target = s.now;
+    // The video ended: back to the start, paused, for everyone, instead of
+    // chasing a moment past its end. Sent once per state.
+    final ended = s.playing &&
+        (player == PlayerState.ended ||
+            (_duration > 0 && target >= _duration - 0.5));
+    if (ended) {
+      if (_endedAt != s.at) {
+        _endedAt = s.at;
+        await _player.pauseVideo();
+        await _player.seekTo(seconds: 0, allowSeekAhead: true);
+        if (mounted) setState(() => _seconds = 0);
+        await _send(playing: false, position: 0);
+      }
+      return;
+    }
     final current = await _player.currentTime;
     if ((current - target).abs() > 1.5 && _seeking == null) {
       await _player.seekTo(seconds: target, allowSeekAhead: true);
@@ -349,9 +376,15 @@ class _WatchPlayerState extends State<_WatchPlayer> {
 
   void _togglePlay() {
     final playing = !widget.state.playing;
+    // Play after the end starts the video again.
+    final atEnd = _duration > 0 && _seconds >= _duration - 1;
+    final position = playing && atEnd ? 0.0 : _seconds;
+    if (position != _seconds) {
+      _player.seekTo(seconds: position, allowSeekAhead: true);
+    }
     // Shown at once; everyone else follows when the chat updates.
     playing ? _player.playVideo() : _player.pauseVideo();
-    _send(playing: playing, position: _seconds);
+    _send(playing: playing, position: position);
   }
 
   void _seek(double to) {
@@ -362,6 +395,7 @@ class _WatchPlayerState extends State<_WatchPlayer> {
 
   @override
   void dispose() {
+    videoHold.removeListener(_onHold);
     _progress?.cancel();
     _drift?.cancel();
     _player.close();

@@ -84,8 +84,8 @@ class _ChatHeaderState extends State<ChatHeader> {
     // keyboard, so the board shrinks while it's open.
     final chessSize = math
         .min(
-          // 5 of air on each side inside the notch's walls.
-          width - 2 * (_NotchShape.fillet + 5),
+          // The notch's side margin inside its walls.
+          width - 2 * (_NotchShape.fillet + _notchInset),
           // Everything else in the notch: name, status and grabber.
           constraints.maxHeight / 2 - top - 105,
         )
@@ -234,6 +234,9 @@ enum _Side { left, right }
 
 /// White container hanging from the top edge, flowing into it with
 /// concave curves on both sides, like a laptop's camera notch.
+/// Side margin inside the notch's walls, for all it shows.
+const _notchInset = 6.0;
+
 class _Notch extends StatefulWidget {
   const _Notch({
     required this.child,
@@ -493,6 +496,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
         // Already playing: the further pull brings up the game's buttons.
         if (_showBoard) _showActions = true;
         _showBoard = true;
+        // The menu may still be open from before the game started; the
+        // board takes its place.
+        _showMenu = false;
       } else {
         // Otherwise the menu: games, YouTube.
         _showMenu = true;
@@ -675,53 +681,60 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
                               child: AnimatedSize(
                                 duration: const Duration(milliseconds: 250),
                                 curve: Curves.easeOutCubic,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    widget.child,
-                                    if (menuShown)
-                                      // Taps on the icons stay in the menu.
-                                      GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () {},
-                                        child: NotchMenu(
-                                          onGame: _startGame,
-                                          onYoutube: _openWatch,
+                                // The one side margin for everything in the
+                                // notch; what goes inside adds none.
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: _notchInset,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      widget.child,
+                                      if (menuShown)
+                                        // Taps on the icons stay in the menu.
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () {},
+                                          child: NotchMenu(
+                                            onGame: _startGame,
+                                            onYoutube: _openWatch,
+                                          ),
                                         ),
-                                      ),
-                                    if (watchShown)
-                                      GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () {},
-                                        child: widget.watchPanel(
-                                          widget.watchWidth,
+                                      if (watchShown)
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTap: () {},
+                                          child: widget.watchPanel(
+                                            widget.watchWidth,
+                                          ),
                                         ),
-                                      ),
-                                    if (boardShown)
-                                      // Taps on the game stay in the game instead of
-                                      // opening the chat info.
-                                      GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        // Also closes the keyboard, letting
-                                        // the board grow back.
-                                        onTap: () => FocusManager
-                                            .instance.primaryFocus
-                                            ?.unfocus(),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            widget.board(_pull > _boardPull),
-                                            // Shown while pulling a game in
-                                            // play further, and kept after.
-                                            if (widget.playing &&
-                                                (_showActions ||
-                                                    (_showBoard &&
-                                                        _pull > _boardPeek)))
-                                              _actions(),
-                                          ],
+                                      if (boardShown)
+                                        // Taps on the game stay in the game instead of
+                                        // opening the chat info.
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          // Also closes the keyboard, letting
+                                          // the board grow back.
+                                          onTap: () => FocusManager
+                                              .instance.primaryFocus
+                                              ?.unfocus(),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              widget.board(_pull > _boardPull),
+                                              // Shown while pulling a game in
+                                              // play further, and kept after.
+                                              if (widget.playing &&
+                                                  (_showActions ||
+                                                      (_showBoard &&
+                                                          _pull > _boardPeek)))
+                                                _actions(),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),

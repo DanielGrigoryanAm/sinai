@@ -130,18 +130,12 @@ class ChatGames extends StatelessWidget {
     // can still be seen.
     Widget? board;
     if (type == ChatGameType.chess && chess != null) {
-      board = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: ChessBoardView(chatCode: chatCode, game: chess, size: chessSize),
-      );
+      board = ChessBoardView(chatCode: chatCode, game: chess, size: chessSize);
     } else if (type == ChatGameType.checkers && checkers != null) {
-      board = Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: CheckersBoardView(
-          chatCode: chatCode,
-          game: checkers,
-          size: chessSize,
-        ),
+      board = CheckersBoardView(
+        chatCode: chatCode,
+        game: checkers,
+        size: chessSize,
       );
     } else if (type == ChatGameType.ticTacToe && ttt != null) {
       board = TicTacToeBoard(chatCode: chatCode, game: ttt);
