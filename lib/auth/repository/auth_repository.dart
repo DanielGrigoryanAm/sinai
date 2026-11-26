@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// Result of asking Firebase to verify a phone number.
 sealed class PhoneCodeResult {
@@ -32,16 +35,24 @@ class PhoneAuthFailure implements Exception {
   String toString() => message;
 }
 
-/// The number already belongs to another account. [credential] signs in
-/// to that account.
+/// The number or Google account already belongs to another
+/// account. [credential] signs in to that account.
 class PhoneNumberInUse implements Exception {
   const PhoneNumberInUse(this.credential);
 
   final AuthCredential credential;
 }
 
-/// Phone number sign-in, used only to keep an account: the app signs in
-/// anonymously, and a phone number can be added later to restore the
+/// The same thing for any way of signing in.
+typedef CredentialInUse = PhoneNumberInUse;
+
+/// The user closed the Google window without picking an account.
+class SignInCancelled implements Exception {
+  const SignInCancelled();
+}
+
+/// Ways to keep an account: the app signs in anonymously, and a phone
+/// number or a Google account can be added later to restore the
 /// account after a reinstall or on a new phone.
 ///
 /// The number lives only in Firebase Authentication. It is never written to
@@ -53,6 +64,49 @@ class AuthRepository {
   String? get phoneNumber {
     final number = _auth.currentUser?.phoneNumber;
     return number == null || number.isEmpty ? null : number;
+  }
+
+  /// The Google account's email linked to this account, if any.
+  String? get googleEmail => _provider(GoogleAuthProvider.PROVIDER_ID)?.email;
+
+  UserInfo? _provider(String id) {
+    for (final info in _auth.currentUser?.providerData ?? const <UserInfo>[]) {
+      if (info.providerId == id) return info;
+    }
+    return null;
+  }
+
+  static bool _googleReady = false;
+  static const _setup = MethodChannel('sinai/setup');
+
+  /// Asks the user to pick a Google account and returns its credential.
+  Future<AuthCredential> googleCredential() async {
+    final google = GoogleSignIn.instance;
+    if (defaultTargetPlatform == TargetPlatform.iOS &&
+        await _setup.invokeMethod<bool>('googleSignInReady') != true) {
+      throw const PhoneAuthFailure(
+          'Google sign-in is not set up for this app yet');
+    }
+    try {
+      if (!_googleReady) {
+        await google.initialize();
+        _googleReady = true;
+      }
+      // Always ask which account, rather than reusing the last one.
+      await google.signOut();
+      final account = await google.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null) {
+        throw const PhoneAuthFailure('Google did not confirm the account');
+      }
+      return GoogleAuthProvider.credential(idToken: idToken);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw const SignInCancelled();
+      }
+      throw PhoneAuthFailure(
+          e.description ?? 'Google sign-in is not set up for this app yet');
+    }
   }
 
   /// Sends an SMS code to [phoneNumber] (international format, with +).
@@ -102,7 +156,7 @@ class AuthRepository {
 
   /// Adds the number to the current account, keeping its chats and name.
   /// Throws [PhoneNumberInUse] when the number has an account already.
-  Future<void> link(PhoneAuthCredential credential) async {
+  Future<void> link(AuthCredential credential) async {
     final user = _auth.currentUser;
     if (user == null) throw const PhoneAuthFailure('Not signed in');
 
@@ -136,7 +190,9 @@ class AuthRepository {
         'quota-exceeded' => 'SMS limit reached. Try again later',
         'network-request-failed' => 'No internet connection',
         'operation-not-allowed' =>
-          'Phone sign-in is not enabled for this app yet',
+          'This way of signing in is not enabled for this app yet',
+        'user-disabled' => 'This account is turned off',
+        'provider-already-linked' => 'Already added to your account',
         _ => e.message ?? 'Something went wrong',
       };
 }

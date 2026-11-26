@@ -26,5 +26,28 @@ import UIKit
       let board = UIPasteboard.general
       result(board.url?.absoluteString ?? board.string)
     }
+
+    // Google Sign-In crashes the app when it lacks its client ID or the
+    // URL scheme for it, so the app asks first.
+    let setup = FlutterMethodChannel(
+      name: "sinai/setup", binaryMessenger: registrar!.messenger())
+    setup.setMethodCallHandler { call, result in
+      guard call.method == "googleSignInReady" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard
+        let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+        let config = NSDictionary(contentsOfFile: path),
+        let reversed = config["REVERSED_CLIENT_ID"] as? String,
+        config["CLIENT_ID"] is String
+      else {
+        result(false)
+        return
+      }
+      let types = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] ?? []
+      let schemes = types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+      result(schemes.contains(reversed))
+    }
   }
 }

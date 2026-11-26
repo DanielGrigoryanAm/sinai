@@ -1,9 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/account/account_options.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
-import 'package:sinai/common/feature_flags.dart';
 import 'package:sinai/common/custom_text_field.dart';
 import 'package:sinai/common/gyro_horizontal_background.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
@@ -79,11 +79,11 @@ class _OnboardingScreenViewState extends State<OnboardingScreenView> {
                 text: 'Start',
                 onTap: name.isNotEmpty ? () => _onStart(name) : null,
               ),
-              if (FeatureFlags.phoneSignIn) ...[
+              if (AccountSection.enabled) ...[
                 SizedBox(height: 12),
                 TextButton(
                   onPressed: () =>
-                      context.router.push(PhoneRoute(restore: true)),
+                      context.router.push(const RestoreRoute()),
                   child: Text(
                     'Already have an account? Restore it',
                     style: context.textTheme.bodySmall.copyWith(

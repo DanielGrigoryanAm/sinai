@@ -241,6 +241,22 @@ class ProfileRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [RestoreScreen]
+class RestoreRoute extends PageRouteInfo<void> {
+  const RestoreRoute({List<PageRouteInfo>? children})
+      : super(RestoreRoute.name, initialChildren: children);
+
+  static const String name = 'RestoreRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const RestoreScreen();
+    },
+  );
+}
+
+/// generated route for
 /// [StartChatScreen]
 class StartChatRoute extends PageRouteInfo<void> {
   const StartChatRoute({List<PageRouteInfo>? children})

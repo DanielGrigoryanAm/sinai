@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/account/account_options.dart';
 import 'package:sinai/features/chat/chat_screen.dart';
 import 'package:sinai/features/chats/chats_screen.dart';
 import 'package:sinai/features/onboarding/onboarding_screen.dart';
@@ -45,6 +46,9 @@ class AppRouter extends RootStackRouter {
         ),
         AutoRoute(
           page: PhoneRoute.page,
+        ),
+        AutoRoute(
+          page: RestoreRoute.page,
         ),
       ];
 }

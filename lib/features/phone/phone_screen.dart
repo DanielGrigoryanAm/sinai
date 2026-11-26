@@ -7,17 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:sinai/auth/account_link.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
-import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
-import 'package:sinai/common/onboarding_prefs.dart';
-import 'package:sinai/features/chat/quick_reactions_store.dart';
-import 'package:sinai/notifications/notification_service.dart';
-import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
-import 'package:sinai/api/auth_api.dart';
 
 /// Adds a phone number to the account, or restores an account by its
 /// number. Pops with `true` when a number was linked to the current
@@ -114,63 +109,24 @@ class _PhoneScreenState extends State<PhoneScreen> {
     });
 
     try {
-      await _auth.link(credential);
+      final outcome = await linkOrSwitch(
+        context,
+        credential,
+        restore: widget.restore,
+        what: 'number',
+      );
       if (!mounted) return;
-      showToast(
-          widget.restore
-              ? 'Number saved. Now enter your name'
-              : 'Phone number added',
-          kind: ToastKind.success);
-      context.router.maybePop(true);
-    } on PhoneNumberInUse catch (e) {
-      if (!mounted) return;
-      // A fresh install has nothing to lose; otherwise ask first.
-      final confirmed = widget.restore ||
-          await showConfirmDialog(
-            context,
-            title: 'Switch account?',
-            message: 'This number already belongs to another Sinai '
-                'account. Signing in to it replaces your current account on '
-                'this phone, and its chats will no longer be available here.',
-            confirmLabel: 'Sign in',
-          );
-      if (!confirmed) {
-        if (mounted) setState(() => _busy = false);
-        return;
+      if (outcome == LinkOutcome.linked) {
+        showToast(
+            widget.restore
+                ? 'Number saved. Now enter your name'
+                : 'Phone number added',
+            kind: ToastKind.success);
+        context.router.maybePop(true);
+      } else if (outcome == LinkOutcome.cancelled) {
+        setState(() => _busy = false);
       }
-      await _switchAccount(e.credential);
     } on PhoneAuthFailure catch (e) {
-      if (mounted) {
-        setState(() {
-          _busy = false;
-          _error = e.message;
-        });
-      }
-    }
-  }
-
-  Future<void> _switchAccount(AuthCredential credential) async {
-    try {
-      // This phone's notifications belong to the account being left.
-      await NotificationService.instance.removeTokenFromCurrentUser();
-      await _auth.signIn(credential);
-      // The backend session follows the Firebase account.
-      await AuthApi.instance.switchToFirebaseAccount();
-      await NotificationService.instance.addTokenToCurrentUser();
-      QuickReactionsStore.instance.start();
-
-      final hasName =
-          FirebaseAuth.instance.currentUser?.displayName?.trim().isNotEmpty ??
-              false;
-      if (hasName) await OnboardingPrefs.setNameConfirmed();
-
-      if (!mounted) return;
-      context.router.replaceAll([
-        if (hasName) const ChatsRoute() else const OnboardingRoute(),
-      ]);
-    } on PhoneAuthFailure catch (e) {
-      // Put this phone's notifications back on the current account.
-      await NotificationService.instance.addTokenToCurrentUser();
       if (mounted) {
         setState(() {
           _busy = false;

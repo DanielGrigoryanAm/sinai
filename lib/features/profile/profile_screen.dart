@@ -1,18 +1,15 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/features/account/account_options.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/custom_app_bar.dart';
-import 'package:sinai/common/feature_flags.dart';
 import 'package:sinai/common/custom_button.dart';
 import 'package:sinai/common/custom_text_field.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
-import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
-import 'package:sinai/common/app_icons.dart';
 
 @RoutePage()
 class ProfileScreen extends StatelessWidget {
@@ -40,7 +37,6 @@ class _ProfileViewState extends State<_ProfileView> {
   late final TextEditingController _nameController =
       TextEditingController(text: _savedName);
   bool _saving = false;
-  final AuthRepository _auth = AuthRepository();
 
   @override
   void dispose() {
@@ -143,10 +139,10 @@ class _ProfileViewState extends State<_ProfileView> {
                     isLoading: _saving,
                     onTap: canSave ? () => _save(name) : null,
                   ),
-                  if (FeatureFlags.phoneSignIn) ...[
+                  if (AccountSection.enabled) ...[
                     const SizedBox(height: 40),
                     Text(
-                      'PHONE NUMBER',
+                      'ACCOUNT',
                       style: text.bodySmall.copyWith(
                         fontSize: 12,
                         letterSpacing: 0.6,
@@ -154,13 +150,7 @@ class _ProfileViewState extends State<_ProfileView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _PhoneSection(
-                      phoneNumber: _auth.phoneNumber,
-                      onAdd: () async {
-                        await context.router.push(PhoneRoute());
-                        if (mounted) setState(() {});
-                      },
-                    ),
+                    const AccountSection(),
                   ],
                 ],
               ),
@@ -168,69 +158,6 @@ class _ProfileViewState extends State<_ProfileView> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// The user's phone number, or a prompt to add one. Shown only on the
-/// user's own profile.
-class _PhoneSection extends StatelessWidget {
-  const _PhoneSection({required this.phoneNumber, required this.onAdd});
-
-  final String? phoneNumber;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colorTheme;
-    final text = context.textTheme;
-    final number = phoneNumber;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-      ),
-      child: number != null
-          ? Row(
-              children: [
-                Icon(AppIcons.shieldCheck, color: colors.secondary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(number, style: text.bodyLarge),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Your account is saved. Only you can see this '
-                        'number.',
-                        style: text.bodySmall
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Add your number to keep your name and chats if you '
-                  'reinstall the app or change phone. Only you can see it.',
-                  style: text.bodySmall.copyWith(color: colors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                CustomButton.outline(
-                  text: 'Add phone number',
-                  leadingIcon: AppIcons.phone,
-                  onTap: onAdd,
-                ),
-              ],
-            ),
     );
   }
 }

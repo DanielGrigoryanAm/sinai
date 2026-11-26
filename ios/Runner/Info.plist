@@ -30,21 +30,22 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>app-1-436746332650-ios-9c0683f126cf3e970b6a93</string>
+				<string>com.googleusercontent.apps.436746332650-nghtgaiol8fsi3ed2b1jqvp092fu52e9</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Sinai uses the microphone to record voice messages.</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Sinai uses the camera to take photos you send in chats.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sinai uses the microphone to record voice messages.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Sinai saves photos from chats to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Sinai accesses your photos so you can send them in chats.</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
