@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/custom_button.dart';
@@ -38,9 +39,7 @@ class _StartChatScreenState extends State<StartChatScreen> {
           body: BlocConsumer<ChatBloc, ChatState>(
             listener: (context, state) {
               if (state is ChatError) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(state.message)),
-                );
+                showToast(state.message, kind: ToastKind.error);
               }
               if (state is ChatJoined) {
                 context.router.push(ChatRoute(chatCode: state.code));

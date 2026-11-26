@@ -4,6 +4,7 @@ import 'package:sinai/common/app_icons.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
@@ -115,15 +116,11 @@ class _PhoneScreenState extends State<PhoneScreen> {
     try {
       await _auth.link(credential);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.restore
-                ? 'Number saved. Now enter your name'
-                : 'Phone number added',
-          ),
-        ),
-      );
+      showToast(
+          widget.restore
+              ? 'Number saved. Now enter your name'
+              : 'Phone number added',
+          kind: ToastKind.success);
       context.router.maybePop(true);
     } on PhoneNumberInUse catch (e) {
       if (!mounted) return;
@@ -227,8 +224,7 @@ class _PhoneScreenState extends State<PhoneScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(AppIcons.lock,
-                        size: 16, color: colors.textSecondary),
+                    Icon(AppIcons.lock, size: 16, color: colors.textSecondary),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(

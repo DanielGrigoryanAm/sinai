@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/custom_app_bar.dart';
@@ -68,15 +69,11 @@ class _ProfileViewState extends State<_ProfileView> {
             _saving = false;
             _savedName = state.name;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Name saved')),
-          );
+          showToast('Name saved', kind: ToastKind.success);
         }
         if (state is ChatError) {
           setState(() => _saving = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message)),
-          );
+          showToast(state.message, kind: ToastKind.error);
         }
       },
       child: GestureDetector(

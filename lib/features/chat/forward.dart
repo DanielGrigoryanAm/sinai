@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
@@ -11,7 +12,6 @@ Future<void> forwardMessage(
   ChatMessage message, {
   required String fromChat,
 }) async {
-  final messenger = ScaffoldMessenger.of(context);
   final target = await showModalBottomSheet<_ChatOption>(
     context: context,
     isScrollControlled: true,
@@ -23,9 +23,7 @@ Future<void> forwardMessage(
   );
   if (target == null) return;
 
-  messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text('Forwarding to ${target.title}…')));
+  showToast('Forwarding to ${target.title}…');
   try {
     // The server copies the message, its photo or voice file included.
     await ChatsApi.instance.forward(
@@ -33,14 +31,10 @@ Future<void> forwardMessage(
       messageId: message.id,
       toChat: target.code,
     );
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('Forwarded to ${target.title}')));
+    showToast('Forwarded to ${target.title}', kind: ToastKind.success);
   } catch (e) {
     debugPrint('Forwarding failed: $e');
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Could not forward')));
+    showToast('Could not forward', kind: ToastKind.error);
   }
 }
 

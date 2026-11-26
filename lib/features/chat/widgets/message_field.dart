@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:sinai/common/app_icons.dart';
 
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:sinai/common/photo_compress.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -68,15 +69,10 @@ class _MessageFieldState extends State<MessageField> {
   void _onTextChanged() => setState(() {});
 
   Future<void> _startRecording() async {
-    final messenger = ScaffoldMessenger.of(context);
-
     try {
       if (!await _recorder.hasPermission()) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Allow microphone access to record voice messages'),
-          ),
-        );
+        showToast('Allow microphone access to record voice messages',
+            kind: ToastKind.error);
         return;
       }
 
@@ -105,9 +101,7 @@ class _MessageFieldState extends State<MessageField> {
       );
       setState(() => _isRecording = true);
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not start recording')),
-      );
+      showToast('Could not start recording', kind: ToastKind.error);
     }
   }
 
@@ -152,9 +146,7 @@ class _MessageFieldState extends State<MessageField> {
       widget.onMessageSent?.call();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save the recording')),
-      );
+      showToast('Could not save the recording', kind: ToastKind.error);
     }
   }
 
@@ -232,8 +224,6 @@ class _MessageFieldState extends State<MessageField> {
   /// Lets the user pick a photo from the gallery or take one. The photo is
   /// only attached; it is sent with the send button.
   Future<void> _attachImage() async {
-    final messenger = ScaffoldMessenger.of(context);
-
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: context.colorTheme.backgroundSecondary,
@@ -264,9 +254,7 @@ class _MessageFieldState extends State<MessageField> {
 
     final room = _maxImages - _pendingImages.length;
     if (room <= 0) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Up to 10 photos at a time')),
-      );
+      showToast('Up to 10 photos at a time');
       return;
     }
 
@@ -303,9 +291,7 @@ class _MessageFieldState extends State<MessageField> {
       if (!mounted) return;
       setState(() => _pendingImages.addAll(added));
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not open the photo')),
-      );
+      showToast('Could not open the photo', kind: ToastKind.error);
     }
   }
 

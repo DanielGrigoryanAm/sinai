@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
@@ -125,9 +126,7 @@ class MessageBubble extends StatelessWidget {
       case MessageMenuActionResult(action: MessageMenuAction.copy):
         await Clipboard.setData(ClipboardData(text: message.text));
         if (bubbleContext.mounted) {
-          ScaffoldMessenger.of(bubbleContext)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(const SnackBar(content: Text('Copied')));
+          showToast('Copied', kind: ToastKind.success);
         }
       case MessageMenuActionResult(action: MessageMenuAction.edit):
         onEdit?.call();
@@ -958,13 +957,10 @@ class _VoiceBubble extends StatelessWidget {
   }
 
   Future<void> _toggle(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await VoicePlayer.instance.toggle(message.audioUrl!);
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not play the voice message')),
-      );
+      showToast('Could not play the voice message', kind: ToastKind.error);
     }
   }
 

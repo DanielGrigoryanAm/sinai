@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/chat_watch.dart';
@@ -183,9 +184,7 @@ class _LinkFieldState extends State<_LinkField> {
     final id = youtubeId(await _clipboardLink() ?? '');
     if (!mounted) return;
     if (id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Copy a YouTube link first')),
-      );
+      showToast('Copy a YouTube link first');
       return;
     }
     setState(() => _busy = true);
@@ -195,9 +194,7 @@ class _LinkFieldState extends State<_LinkField> {
     } catch (e) {
       debugPrint('Starting the video failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not start the video')),
-        );
+        showToast('Could not start the video', kind: ToastKind.error);
       }
     }
     if (mounted) setState(() => _busy = false);

@@ -5,6 +5,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/progressive_blur.dart';
@@ -89,9 +90,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
       _messageKeys.putIfAbsent(messageId, GlobalKey.new);
 
   void _showSnack(String text) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(text)));
+    showToast(text);
   }
 
   /// Scrolls to [messageId], loading older pages if it is not loaded yet,
@@ -347,9 +346,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
         body: BlocListener<ChatBloc, ChatState>(
           listener: (context, state) {
             if (state is ChatError) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message)),
-              );
+              showToast(state.message, kind: ToastKind.error);
             }
             if (state is MessagesLoaded) _onMessagesChanged(state);
             if (state is ChatDeleted) {

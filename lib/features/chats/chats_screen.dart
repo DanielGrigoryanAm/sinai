@@ -1,6 +1,7 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:sinai/features/chat/draft_store.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -53,14 +54,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
     }
 
     _lastBackPressedAt = now;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Tap again to exit the app.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    showToast('Tap again to exit the app.',
+        duration: const Duration(seconds: 2));
   }
 
   List<ChatSummary> _filter(List<ChatSummary> chats) {
@@ -84,9 +79,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
       child: BlocListener<ChatBloc, ChatState>(
         listener: (context, state) {
           if (state is ChatError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
+            showToast(state.message, kind: ToastKind.error);
           }
           if (state is ChatDeleted) {
             context.read<ChatBloc>().add(const GetChatsEvent());

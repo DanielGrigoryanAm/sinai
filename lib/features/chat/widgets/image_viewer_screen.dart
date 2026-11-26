@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:gal/gal.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/api/media_url.dart';
@@ -50,9 +51,7 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
 
     if (!mounted) return;
     setState(() => _saving = false);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showToast(message);
   }
 
   @override

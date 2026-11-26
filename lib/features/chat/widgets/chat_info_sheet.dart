@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
@@ -105,7 +106,6 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
 
   /// Owner only: picks a photo and makes it the chat's picture.
   Future<void> _changePhoto(String? oldPhotoUrl) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       final picked = await ImagePicker().pickImage(
         source: ImageSource.gallery,
@@ -128,9 +128,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
       );
     } catch (e) {
       debugPrint('Changing the chat photo failed: $e');
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not change the photo')),
-      );
+      showToast('Could not change the photo', kind: ToastKind.error);
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
     }
@@ -138,7 +136,6 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
 
   /// Owner only: takes a member out of the chat.
   Future<void> _removeMember(String uid, String name) async {
-    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showConfirmDialog(
       context,
       title: 'Remove $name?',
@@ -152,15 +149,12 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
       await ChatsApi.instance.removeMember(widget.chatCode, uid);
     } catch (e) {
       debugPrint('Removing a member failed: $e');
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not remove the member')),
-      );
+      showToast('Could not remove the member', kind: ToastKind.error);
     }
   }
 
   /// Owner only: renames the chat for everyone.
   Future<void> _rename(String current) async {
-    final messenger = ScaffoldMessenger.of(context);
     final controller = TextEditingController(text: current);
     final name = await showDialog<String>(
       context: context,
@@ -192,9 +186,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
       await ChatsApi.instance.rename(widget.chatCode, trimmed);
     } catch (e) {
       debugPrint('Renaming the chat failed: $e');
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Could not rename the chat')),
-      );
+      showToast('Could not rename the chat', kind: ToastKind.error);
     }
   }
 

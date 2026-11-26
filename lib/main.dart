@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/common/toast.dart';
 import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/draft_store.dart';
@@ -55,6 +56,7 @@ void main() async {
 
   final nameConfirmed = await OnboardingPrefs.isNameConfirmed();
   appRouter = AppRouter(showOnboarding: !nameConfirmed);
+  toastOverlay = () => appRouter.navigatorKey.currentState?.overlay;
 
   NotificationService.instance.onOpenChat = (chatCode, chatName) {
     appRouter.push(ChatRoute(chatCode: chatCode, chatName: chatName));
