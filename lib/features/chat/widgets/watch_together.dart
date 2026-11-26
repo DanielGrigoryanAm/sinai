@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/api/api_client.dart';
@@ -148,6 +149,20 @@ class WatchPanel extends StatelessWidget {
   }
 }
 
+const _clipboard = MethodChannel('sinai/clipboard');
+
+/// The copied link or text. On iOS a copied link may be only a URL, which
+/// Flutter's clipboard doesn't read, so the app asks iOS itself.
+Future<String?> _clipboardLink() async {
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    try {
+      final link = await _clipboard.invokeMethod<String>('link');
+      if (link != null) return link;
+    } catch (_) {}
+  }
+  return (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+}
+
 /// Where a YouTube link goes. The clipboard is read only when the user
 /// taps paste: reading it unasked makes iOS ask permission every time.
 class _LinkField extends StatefulWidget {
@@ -160,31 +175,19 @@ class _LinkField extends StatefulWidget {
 }
 
 class _LinkFieldState extends State<_LinkField> {
-  final _link = TextEditingController();
   bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _link.addListener(() => setState(() {}));
-  }
-
-  /// Usually the link was just copied in the YouTube app.
+  /// Usually the link was just copied in the YouTube app: reads it and
+  /// starts it for everyone.
   Future<void> _paste() async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text?.trim() ?? '';
-    if (mounted && text.isNotEmpty) _link.text = text;
-  }
-
-  @override
-  void dispose() {
-    _link.dispose();
-    super.dispose();
-  }
-
-  Future<void> _watch() async {
-    final id = youtubeId(_link.text);
-    if (id == null) return;
+    final id = youtubeId(await _clipboardLink() ?? '');
+    if (!mounted) return;
+    if (id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Copy a YouTube link first')),
+      );
+      return;
+    }
     setState(() => _busy = true);
     try {
       await WatchStore.set(widget.chatCode,
@@ -203,60 +206,33 @@ class _LinkFieldState extends State<_LinkField> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final valid = youtubeId(_link.text) != null;
-    return Container(
-      width: 268,
-      padding: const EdgeInsets.only(left: 8),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _link,
-              style: const TextStyle(fontSize: 14),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: 'Paste a YouTube link',
-                filled: true,
-                fillColor: colors.backgroundPrimary,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                suffixIcon: _link.text.isEmpty
-                    ? IconButton(
-                        tooltip: 'Paste',
-                        onPressed: _paste,
-                        icon: Icon(AppIcons.copy,
-                            size: 16, color: colors.textSecondary),
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              onSubmitted: (_) => _watch(),
-            ),
-          ),
-          const SizedBox(width: 6),
-          _busy
-              ? const SizedBox.square(
-                  dimension: 36,
-                  child: Padding(
-                    padding: EdgeInsets.all(9),
+          SizedBox.square(
+            dimension: 44,
+            child: _busy
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
                     child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : IconButton.filled(
+                    tooltip: 'Paste',
+                    onPressed: _paste,
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF0000).withAlpha(32),
+                    ),
+                    icon: const Icon(AppIcons.copy,
+                        size: 20, color: Color(0xFFFF0000)),
                   ),
-                )
-              : IconButton.filled(
-                  tooltip: 'Watch',
-                  onPressed: valid ? _watch : null,
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF0000),
-                  ),
-                  // The triangle looks off-centre when centred exactly.
-                  icon: const Padding(
-                    padding: EdgeInsets.only(left: 3),
-                    child: Icon(AppIcons.play, size: 16, color: Colors.white),
-                  ),
-                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Tap to paste a YouTube link',
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
         ],
       ),
     );
