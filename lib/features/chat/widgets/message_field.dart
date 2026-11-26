@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:sinai/common/app_icons.dart';
 
 import 'package:flutter/material.dart';
+import 'package:sinai/common/photo_compress.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -84,10 +85,11 @@ class _MessageFieldState extends State<MessageField> {
           '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
       await _recorder.start(
-        // Mono speech at a modest bitrate keeps voice messages small.
+        // Mono speech at 32 kbit/s: clear for voice, about 240 KB a minute.
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
-          bitRate: 64000,
+          bitRate: 32000,
+          sampleRate: 24000,
           numChannels: 1,
         ),
         path: path,
@@ -292,9 +294,10 @@ class _MessageFieldState extends State<MessageField> {
 
       final added = <({Uint8List bytes, String type})>[];
       for (final file in picked.take(room)) {
-        added.add((
-          bytes: await file.readAsBytes(),
-          type: file.mimeType ?? 'image/jpeg',
+        // Re-encoded small: PNGs and screenshots stay large otherwise.
+        added.add(await compressPhoto(
+          await file.readAsBytes(),
+          file.mimeType ?? 'image/jpeg',
         ));
       }
       if (!mounted) return;

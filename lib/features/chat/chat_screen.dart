@@ -478,8 +478,11 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                                     // messages are deleted and sent again.
                                     onForward: message.createdAt == null
                                         ? null
-                                        : () =>
-                                            forwardMessage(context, message),
+                                        : () => forwardMessage(
+                                              context,
+                                              message,
+                                              fromChat: widget.chatCode,
+                                            ),
                                     onEdit: isMe &&
                                             message.createdAt != null &&
                                             !message.isImage &&

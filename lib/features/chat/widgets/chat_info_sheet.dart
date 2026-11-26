@@ -13,6 +13,7 @@ import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:sinai/common/chat_avatar.dart';
+import 'package:sinai/common/photo_compress.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/presence/presence_service.dart';
@@ -130,10 +131,15 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
       setState(() => _uploadingPhoto = true);
 
       if (ApiConfig.useBackend) {
-        await ChatsApi.instance.setPhoto(
-          widget.chatCode,
+        final photo = await compressPhoto(
           await picked.readAsBytes(),
           picked.mimeType ?? 'image/jpeg',
+          maxSide: 600,
+        );
+        await ChatsApi.instance.setPhoto(
+          widget.chatCode,
+          photo.bytes,
+          photo.type,
         );
         return;
       }

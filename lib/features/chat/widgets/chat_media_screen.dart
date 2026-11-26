@@ -6,6 +6,9 @@ import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/api/media_url.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chats_api.dart';
 
 /// All photos and voice messages of a chat, newest first.
 class ChatMediaScreen extends StatefulWidget {
@@ -31,6 +34,22 @@ class _ChatMediaScreenState extends State<ChatMediaScreen> {
   late final Future<List<Map<String, dynamic>>> _voices = _load('audioUrl');
 
   Future<List<Map<String, dynamic>>> _load(String field) async {
+    if (ApiConfig.useBackend) {
+      final list = await ChatsApi.instance
+          .media(widget.chatCode, field == 'imageUrl' ? 'image' : 'voice');
+      // Shaped like the Firestore documents the rows read.
+      return [
+        for (final m in list)
+          {
+            'imageUrl': m.imageUrl,
+            'audioUrl': m.audioUrl,
+            'audioDurationMs': m.audioDurationMs,
+            'senderName': m.senderName,
+            'createdAt':
+                m.createdAt == null ? null : Timestamp.fromDate(m.createdAt!),
+          },
+      ];
+    }
     final snapshot =
         await _messages.where(field, isGreaterThan: '').limit(_limit).get();
     final items = snapshot.docs.map((d) => d.data()).toList();
@@ -90,7 +109,8 @@ class _ChatMediaScreenState extends State<ChatMediaScreen> {
                       ),
                     ),
                     child: CachedNetworkImage(
-                      imageUrl: url,
+                      imageUrl: mediaUrl(url).url,
+                      cacheKey: mediaUrl(url).cacheKey,
                       memCacheWidth:
                           (140 * MediaQuery.devicePixelRatioOf(context))
                               .round(),

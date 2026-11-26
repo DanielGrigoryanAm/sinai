@@ -39,6 +39,7 @@ dependencies:
   chess: ^0.8.1
   flutter_secure_storage: ^11.2.0
   web_socket_channel: ^3.0.3
+  flutter_image_compress: ^2.5.1
 
 
 dev_dependencies:

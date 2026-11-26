@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/common/app_icons.dart';
+import 'dart:async';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chats_api.dart';
 
 /// Searches a chat's messages by text. Pops with the id of the tapped
 /// message, so the chat can scroll to it.
@@ -34,10 +37,42 @@ class _SearchItem {
 
 class _MessageSearchScreenState extends State<MessageSearchScreen> {
   final TextEditingController _query = TextEditingController();
-  late final Future<List<_SearchItem>> _messages = _load();
+  late Future<List<_SearchItem>> _messages =
+      ApiConfig.useBackend ? Future.value(const []) : _load();
+
+  /// On the backend the search runs on the server, a moment after the user
+  /// stops typing; Firebase loads the chat once and filters here.
+  Timer? _searchSoon;
+  String _searched = '';
+
+  void _onQueryChanged() {
+    if (!ApiConfig.useBackend) return;
+    final query = _query.text.trim();
+    _searchSoon?.cancel();
+    if (query.length < 2 || query == _searched) return;
+    _searchSoon = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        _searched = query;
+        _messages = ChatsApi.instance.search(widget.chatCode, query).then(
+              (list) => [
+                for (final m in list)
+                  if (m.text.trim().isNotEmpty)
+                    _SearchItem(
+                      id: m.id,
+                      text: m.text,
+                      senderName: m.senderName,
+                      createdAt: m.createdAt,
+                    ),
+              ],
+            );
+      });
+    });
+  }
 
   @override
   void dispose() {
+    _searchSoon?.cancel();
     _query.dispose();
     super.dispose();
   }
@@ -78,7 +113,10 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
           cursorColor: colors.secondary,
           textInputAction: TextInputAction.search,
           style: context.textTheme.bodyLarge,
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) {
+            setState(() {});
+            _onQueryChanged();
+          },
           decoration: InputDecoration(
             hintText: 'Search messages',
             hintStyle: context.textTheme.bodyLarge

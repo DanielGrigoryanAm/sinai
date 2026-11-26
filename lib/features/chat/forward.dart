@@ -6,9 +6,15 @@ import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chats_api.dart';
 
 /// Asks which chat to forward [message] to and sends a copy there.
-Future<void> forwardMessage(BuildContext context, ChatMessage message) async {
+Future<void> forwardMessage(
+  BuildContext context,
+  ChatMessage message, {
+  required String fromChat,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   final target = await showModalBottomSheet<_ChatOption>(
     context: context,
@@ -25,7 +31,15 @@ Future<void> forwardMessage(BuildContext context, ChatMessage message) async {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text('Forwarding to ${target.title}…')));
   try {
-    await _send(message, target.code);
+    if (ApiConfig.useBackend) {
+      await ChatsApi.instance.forward(
+        fromChat: fromChat,
+        messageId: message.id,
+        toChat: target.code,
+      );
+    } else {
+      await _send(message, target.code);
+    }
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text('Forwarded to ${target.title}')));
@@ -99,6 +113,31 @@ class _ChatOption {
 class _ForwardSheet extends StatelessWidget {
   const _ForwardSheet();
 
+  /// The user's chats to forward to, by name.
+  static Future<List<_ChatOption>> _chats(String? uid) async {
+    final List<_ChatOption> chats;
+    if (ApiConfig.useBackend) {
+      chats = [
+        for (final chat in await ChatsApi.instance.chats())
+          _ChatOption(chat.code, chat.title, chat.photoUrl),
+      ];
+    } else {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('participantIds', arrayContains: uid)
+          .get();
+      chats = snapshot.docs.map((doc) {
+        final name = (doc.data()['name'] as String?)?.trim();
+        return _ChatOption(
+          doc.id,
+          name == null || name.isEmpty ? doc.id : name,
+          doc.data()['photoUrl'] as String?,
+        );
+      }).toList();
+    }
+    return chats..sort((a, b) => a.title.compareTo(b.title));
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
@@ -116,11 +155,8 @@ class _ForwardSheet extends StatelessWidget {
             Text('Forward to', style: context.textTheme.titleLarge),
             const SizedBox(height: 8),
             Flexible(
-              child: FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                future: FirebaseFirestore.instance
-                    .collection('chats')
-                    .where('participantIds', arrayContains: uid)
-                    .get(),
+              child: FutureBuilder<List<_ChatOption>>(
+                future: _chats(uid),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Padding(
@@ -128,15 +164,7 @@ class _ForwardSheet extends StatelessWidget {
                       child: Center(child: CircularProgressIndicator()),
                     );
                   }
-                  final chats = snapshot.data!.docs.map((doc) {
-                    final name = (doc.data()['name'] as String?)?.trim();
-                    return _ChatOption(
-                      doc.id,
-                      name == null || name.isEmpty ? doc.id : name,
-                      doc.data()['photoUrl'] as String?,
-                    );
-                  }).toList()
-                    ..sort((a, b) => a.title.compareTo(b.title));
+                  final chats = snapshot.data!;
 
                   return ListView.builder(
                     shrinkWrap: true,

@@ -12,7 +12,9 @@ import 'dart:typed_data';
 import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/chats_api.dart';
+import 'package:http/http.dart' as http;
 import 'package:sinai/api/live_socket.dart';
+import 'package:sinai/api/media_url.dart';
 import 'package:sinai/api/session_store.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 
@@ -191,5 +193,49 @@ void main() {
 
     await ChatsApi.instance.deleteOrLeave(code, isOwner: true);
     await LiveSocket.instance.stop();
+  }, skip: enabled ? false : 'needs a backend; see the top of the file');
+
+  test('photos: upload, load with the token, media list, search, forward',
+      () async {
+    final alice = ApiClient.instance;
+    if (!alice.isSignedIn) {
+      FlutterSecureStorage.setMockInitialValues({});
+      await alice.startSession(await alice.postPublic(
+          '/v1/auth/guest', {'name': 'Alice'}) as Map<String, dynamic>);
+    }
+    final api = ChatsApi.instance;
+    final code = await api.create('Media test');
+    final other = await api.create('Forward target');
+
+    final photo = Uint8List.fromList(List.generate(2048, (i) => i % 251));
+    final key = await api.upload(code,
+        kind: 'image', contentType: 'image/jpeg', bytes: photo);
+    final sent = await api.send(code,
+        text: 'фото с подписью', imageKey: key, imageWidth: 10, imageHeight: 10);
+    expect(sent.imageUrl, startsWith(ApiConfig.baseUrl));
+
+    // Loads with the token in the address, cached by the address without.
+    final source = mediaUrl(sent.imageUrl!);
+    expect(source.cacheKey, sent.imageUrl);
+    expect(source.url, contains('token='));
+    final res = await http.get(Uri.parse(source.url));
+    expect(res.statusCode, 200);
+    expect(res.bodyBytes, photo);
+    expect((await http.get(Uri.parse(sent.imageUrl!))).statusCode, 401);
+
+    final media = await api.media(code, 'image');
+    expect(media.single.id, sent.id);
+    final found = await api.search(code, 'подпис');
+    expect(found.single.id, sent.id);
+
+    await api.forward(fromChat: code, messageId: sent.id, toChat: other);
+    final copied = (await api.messages(other)).single;
+    expect(copied.forwardedFrom, 'Alice');
+    expect(copied.imageUrl, contains('/chats/$other/images/'));
+    final copy = await http.get(Uri.parse(mediaUrl(copied.imageUrl!).url));
+    expect(copy.bodyBytes, photo);
+
+    await api.deleteOrLeave(code, isOwner: true);
+    await api.deleteOrLeave(other, isOwner: true);
   }, skip: enabled ? false : 'needs a backend; see the top of the file');
 }

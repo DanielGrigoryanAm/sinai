@@ -100,6 +100,32 @@ class ChatsApi {
         if (forwardedFrom != null) 'forwardedFrom': forwardedFrom,
       }) as Map<String, dynamic>);
 
+  /// The chat's photos (`image`) or voice messages (`voice`), newest
+  /// first.
+  Future<List<ChatMessage>> media(String code, String kind) async {
+    final list = await _api.get(
+        '${_chat(code)}/media', {'kind': kind, 'limit': '300'}) as List;
+    return [for (final raw in list) message(raw as Map<String, dynamic>)];
+  }
+
+  /// Messages whose text contains [query], newest first.
+  Future<List<ChatMessage>> search(String code, String query) async {
+    final list = await _api.get('${_chat(code)}/messages/search',
+        {'q': query, 'limit': '100'}) as List;
+    return [for (final raw in list) message(raw as Map<String, dynamic>)];
+  }
+
+  /// Copies a message of [fromChat] into [toChat], its file included.
+  Future<void> forward({
+    required String fromChat,
+    required String messageId,
+    required String toChat,
+  }) =>
+      _api.post('${_chat(toChat)}/forward', {
+        'chat': fromChat.toUpperCase(),
+        'messageId': messageId,
+      });
+
   Future<void> edit(String code, String id, String text) =>
       _api.patch('${_chat(code)}/messages/$id', {'text': text});
 

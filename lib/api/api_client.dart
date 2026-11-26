@@ -80,6 +80,15 @@ class ApiClient {
     }
   }
 
+  /// The access token as it is now, for places that can't wait for a
+  /// refresh (image widgets); starts one in the background when it is
+  /// about to run out.
+  String? get currentAccessToken {
+    final session = _session;
+    if (session != null && session.accessExpired) _refresh();
+    return session?.accessToken;
+  }
+
   /// A current access token, refreshed first if needed; null if signed out.
   Future<String?> accessToken() async {
     var session = _session;

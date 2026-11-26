@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
+import 'package:sinai/api/media_url.dart';
 
 /// Round avatar: the photo when there is one, otherwise the first letter
 /// of [title] on a grey circle.
@@ -52,7 +53,8 @@ class ChatAvatar extends StatelessWidget {
       child: url == null || url.isEmpty
           ? letter
           : CachedNetworkImage(
-              imageUrl: url,
+              imageUrl: mediaUrl(url).url,
+              cacheKey: mediaUrl(url).cacheKey,
               fit: BoxFit.cover,
               memCacheWidth:
                   (size * MediaQuery.devicePixelRatioOf(context)).round(),

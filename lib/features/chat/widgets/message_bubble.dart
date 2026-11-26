@@ -12,6 +12,7 @@ import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/theme/theme_store.dart';
 import 'package:sinai/common/app_icons.dart';
+import 'package:sinai/api/media_url.dart';
 
 /// A single chat message: bubble with the time inside and, for other
 /// people's messages, the sender name above the first one of a run.
@@ -266,7 +267,8 @@ class MessageBubble extends StatelessWidget {
                 children: [
                   // Cached on disk, so a photo is downloaded only once.
                   CachedNetworkImage(
-                    imageUrl: imageUrl,
+                    imageUrl: mediaUrl(imageUrl).url,
+                    cacheKey: mediaUrl(imageUrl).cacheKey,
                     // Decoded at bubble size, not the 1600px original.
                     memCacheWidth:
                         (240 * MediaQuery.devicePixelRatioOf(context)).round(),

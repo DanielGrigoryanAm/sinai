@@ -3,6 +3,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:sinai/common/app_icons.dart';
+import 'package:sinai/api/media_url.dart';
 
 /// Full-screen picture with pinch-to-zoom and a button to save it to the
 /// device gallery.
@@ -97,7 +98,8 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
           // Shares the disk cache with the chat bubble, so opening a
           // photo that is already on screen shows it at once.
           child: CachedNetworkImage(
-            imageUrl: widget.imageUrl,
+            imageUrl: mediaUrl(widget.imageUrl).url,
+            cacheKey: mediaUrl(widget.imageUrl).cacheKey,
             fit: BoxFit.contain,
             fadeInDuration: Duration.zero,
             placeholder: (context, url) => const Center(

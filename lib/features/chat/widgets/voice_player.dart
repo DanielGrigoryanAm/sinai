@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:sinai/api/media_url.dart';
 
 /// What the shared voice player is doing right now.
 @immutable
@@ -82,7 +83,10 @@ class VoicePlayer {
       playback.value = VoicePlayback(url: url, isLoading: true);
       // Download fully first (cached for replays) so playback starts at
       // the very beginning instead of skipping while it streams.
-      final file = await DefaultCacheManager().getSingleFile(url);
+      // Backend files need the token; cached by their address without it.
+      final source = mediaUrl(url);
+      final file = await DefaultCacheManager()
+          .getSingleFile(source.url, key: source.cacheKey);
       // Another message may have been tapped meanwhile.
       if (playback.value.url != url) return;
       playback.value = VoicePlayback(url: url, isPlaying: true);
