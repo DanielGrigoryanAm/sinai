@@ -816,8 +816,8 @@ class _EdgeTab extends StatelessWidget {
     required this.onTap,
   });
 
-  static const _width = 58.0;
-  static const _tabHeight = 50.0;
+  static const _width = 53.0;
+  static const _tabHeight = 45.0;
   static const _fillet = 16.0;
 
   final _Side side;
