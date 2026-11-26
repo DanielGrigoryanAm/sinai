@@ -70,6 +70,9 @@ flutter:
     - family: UiconsSolid
       fonts:
         - asset: assets/fonts/UiconsSolid.ttf
+    - family: UiconsBrands
+      fonts:
+        - asset: assets/fonts/UiconsBrands.ttf
 
 flutter_gen:
   output: lib/gen/

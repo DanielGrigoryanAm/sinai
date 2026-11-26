@@ -35,4 +35,11 @@ abstract final class AppIcons {
   static const arrowDown = IconData(0xe0d8, fontFamily: 'UiconsThin');
   static const images = IconData(0xea38, fontFamily: 'UiconsThin');
   static const link = IconData(0xeb4f, fontFamily: 'UiconsThin');
+
+  // Solid icons for the notch menu.
+  static const games = IconData(0xe898, fontFamily: 'UiconsSolid');
+  static const chess = IconData(0xe3ea, fontFamily: 'UiconsSolid');
+  static const ticTacToe = IconData(0xe983, fontFamily: 'UiconsSolid');
+  static const checkers = IconData(0xe437, fontFamily: 'UiconsSolid');
+  static const youtube = IconData(0xf4f9, fontFamily: 'UiconsBrands');
 }

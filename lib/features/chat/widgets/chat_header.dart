@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +8,7 @@ import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/features/chat/widgets/notch_extras.dart';
+import 'package:sinai/features/chat/widgets/notch_menu.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/api/chat_watch.dart';
@@ -126,19 +126,13 @@ class _ChatHeaderState extends State<ChatHeader> {
             wide: ChatGames.shown(_chat).isWide,
             top: 0,
             onTap: onInfo,
-            board: (armed) => ChatGames(
+            board: (_) => ChatGames(
               chatCode: widget.chatCode,
               chat: _chat,
-              armed: armed,
               chessSize: chessSize,
             ),
-            // Like pull to refresh: letting go past the mark starts a
-            // game, unless one is still being played.
-            onPulled: () {
-              if (ChatGames.playing(_chat) == null) {
-                ChatGames.start(widget.chatCode, _chat).catchError((_) {});
-              }
-            },
+            onStartGame: (type) =>
+                ChatGames.startType(widget.chatCode, type).catchError((_) {}),
             status: status,
             waiting: ChatGames.waitsOnMe(_chat),
             playing: ChatGames.playing(_chat) != null,
@@ -237,7 +231,7 @@ class _Notch extends StatefulWidget {
     required this.narrowWidth,
     required this.wide,
     required this.board,
-    required this.onPulled,
+    required this.onStartGame,
     required this.status,
     required this.waiting,
     required this.playing,
@@ -263,8 +257,8 @@ class _Notch extends StatefulWidget {
   /// it's pulled far enough that letting go starts a game.
   final Widget Function(bool armed) board;
 
-  /// Let go after being pulled past the mark.
-  final VoidCallback onPulled;
+  /// A game was picked in the pulled-down menu.
+  final ValueChanged<ChatGameType> onStartGame;
 
   /// A game waits on this user: the notch hops to say so.
   final bool waiting;
@@ -341,6 +335,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
 
   bool _showBoard = false;
 
+  /// The icon menu (games, YouTube), when no game is being played.
+  bool _showMenu = false;
+
   /// Restart and cancel buttons under a game being played.
   bool _showActions = false;
 
@@ -402,8 +399,9 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   void _update(DragUpdateDetails details) {
     _drag = math.max(0, _drag + details.delta.dy);
     _gestureDy += details.delta.dy;
-    if (_showBoard && _gestureDy < -30) {
+    if ((_showBoard || _showMenu) && _gestureDy < -30) {
       _showBoard = false;
+      _showMenu = false;
       _showActions = false;
       _syncHop();
     }
@@ -416,11 +414,16 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
   void _release([DragEndDetails? details]) {
     _drag = 0;
     if (_pull > _boardPull) {
-      // Already playing: the further pull brings up the game's buttons.
-      if (_showBoard && widget.playing) _showActions = true;
-      _showBoard = true;
+      if (widget.playing) {
+        // Already playing: the further pull brings up the game's buttons.
+        if (_showBoard) _showActions = true;
+        _showBoard = true;
+      } else {
+        // Otherwise the menu: games, YouTube.
+        _showMenu = true;
+        _showBoard = false;
+      }
       _syncHop();
-      widget.onPulled();
     }
     if (_pull > 0) {
       _snapFrom = _pull;
@@ -439,6 +442,16 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     } else {
       widget.onTap();
     }
+  }
+
+  /// Starts the picked game and shows its board in place of the menu.
+  void _startGame(ChatGameType type) {
+    setState(() {
+      _showMenu = false;
+      _showBoard = true;
+    });
+    _syncHop();
+    widget.onStartGame(type);
   }
 
   void _restart() {
@@ -497,7 +510,13 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
     final shape = _NotchShape(widget.top);
     final open = _open.value;
     final top = MediaQuery.paddingOf(context).top;
-    final boardShown = _showBoard || _pull > _boardPeek;
+    // While a game is on, pulling peeks at its board; otherwise at the
+    // menu, unless a game was just picked.
+    final peeking = _pull > _boardPeek;
+    final boardShown =
+        (widget.playing && peeking) || (_showBoard && !_showMenu);
+    final menuShown =
+        !boardShown && (_showMenu || (peeking && !widget.playing));
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth:
@@ -546,6 +565,13 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     widget.child,
+                                    if (menuShown)
+                                      // Taps on the icons stay in the menu.
+                                      GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () {},
+                                        child: NotchMenu(onGame: _startGame),
+                                      ),
                                     if (boardShown)
                                       // Taps on the game stay in the game instead of
                                       // opening the chat info.

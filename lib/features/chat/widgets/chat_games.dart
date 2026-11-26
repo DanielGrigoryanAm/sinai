@@ -58,7 +58,6 @@ class ChatGames extends StatelessWidget {
     super.key,
     required this.chatCode,
     required this.chat,
-    required this.armed,
     required this.chessSize,
   });
 
@@ -67,8 +66,6 @@ class ChatGames extends StatelessWidget {
   /// The chat document's data.
   final Map<String, dynamic>? chat;
 
-  /// Pulled far enough that letting go starts a game.
-  final bool armed;
   final double chessSize;
 
   /// The game being played, if one is and isn't finished.
@@ -98,9 +95,10 @@ class ChatGames extends StatelessWidget {
 
   /// Starts the game being played over again.
   static Future<void> restart(String chatCode, Map<String, dynamic>? chat) =>
-      _start(chatCode, playing(chat) ?? ChatGameType.pickedIn(chat));
+      startType(chatCode, playing(chat) ?? ChatGameType.pickedIn(chat));
 
-  static Future<void> _start(String chatCode, ChatGameType type) =>
+  /// Starts a new game of [type]; it becomes the chat's pick.
+  static Future<void> startType(String chatCode, ChatGameType type) =>
       switch (type) {
         ChatGameType.ticTacToe => TicTacToe.start(chatCode),
         ChatGameType.chess => ChessGame.start(chatCode),
@@ -117,7 +115,7 @@ class ChatGames extends StatelessWidget {
 
   /// Starts the picked game, keeping the pick.
   static Future<void> start(String chatCode, Map<String, dynamic>? chat) =>
-      _start(chatCode, ChatGameType.pickedIn(chat));
+      startType(chatCode, ChatGameType.pickedIn(chat));
 
   @override
   Widget build(BuildContext context) {
@@ -154,27 +152,18 @@ class ChatGames extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (board != null) board,
-          if (playing == null) ...[
-            if (board != null) const SizedBox(height: 10),
-            Text(
-              ChatGameType.pickedIn(chat).label,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
+          // A game just picked shows once the server has it.
+          board ??
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.secondary,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              armed ? 'Release to start' : 'Pull to start a game',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: armed ? colors.secondary : colors.textSecondary,
-              ),
-            ),
-          ],
         ],
       ),
     );
