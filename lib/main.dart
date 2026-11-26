@@ -8,6 +8,7 @@ import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/draft_store.dart';
+import 'package:sinai/features/update/app_update.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -25,6 +26,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Doesn't hold up the start; the banner or block appears when it knows.
+  unawaited(AppUpdate.instance.start());
 
   if (FirebaseAuth.instance.currentUser == null) {
     await FirebaseAuth.instance.signInAnonymously();
@@ -71,6 +75,8 @@ class MyApp extends StatelessWidget {
         // lack the typography extension every screen relies on.
         themeMode: ThemeMode.light,
         routerConfig: appRouter.config(),
+        builder: (context, child) =>
+            UpdateGate(child: child ?? const SizedBox.shrink()),
         theme: ThemeData(
           textTheme: GoogleFonts.interTextTheme(),
           extensions: <ThemeExtension<dynamic>>[
