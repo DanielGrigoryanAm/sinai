@@ -4,6 +4,8 @@ import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chat_watch.dart';
 
 /// Picks the game a pull on the notch starts. The pick belongs to the chat,
 /// so every member gets the same game.
@@ -11,6 +13,14 @@ class MiniGamesScreen extends StatelessWidget {
   const MiniGamesScreen({super.key, required this.chatCode});
 
   final String chatCode;
+
+  Stream<Map<String, dynamic>?> get _chat => ApiConfig.useBackend
+      ? watchChat(chatCode)
+      : FirebaseFirestore.instance
+          .collection('chats')
+          .doc(chatCode)
+          .snapshots()
+          .map((doc) => doc.data());
 
   @override
   Widget build(BuildContext context) {
@@ -31,13 +41,10 @@ class MiniGamesScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('chats')
-            .doc(chatCode)
-            .snapshots(),
+      body: StreamBuilder<Map<String, dynamic>?>(
+        stream: _chat,
         builder: (context, snapshot) {
-          final picked = ChatGameType.pickedIn(snapshot.data?.data());
+          final picked = ChatGameType.pickedIn(snapshot.data);
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
@@ -53,7 +60,7 @@ class MiniGamesScreen extends StatelessWidget {
                   selected: type == picked,
                   onTap: () => ChatGameType.pick(
                     chatCode,
-                    snapshot.data?.data(),
+                    snapshot.data,
                     type,
                   ).catchError((_) {}),
                 ),

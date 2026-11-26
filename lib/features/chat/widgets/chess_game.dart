@@ -1,6 +1,6 @@
 import 'package:chess/chess.dart' as ch;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sinai/api/current_user.dart';
+import 'package:sinai/features/chat/widgets/game_store.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -8,6 +8,7 @@ import 'package:sinai/theme/color_theme.dart';
 /// first other member to move plays black.
 class ChessGame {
   const ChessGame({
+    this.raw = const {},
     required this.fen,
     required this.white,
     required this.black,
@@ -28,6 +29,9 @@ class ChessGame {
   /// null while playing, then 'w', 'b' (the winner) or 'draw'.
   final String? result;
 
+  /// The game as stored, so a move can write it back whole.
+  final Map<String, dynamic> raw;
+
   bool get isOver => result != null;
 
   /// 'w' or 'b'.
@@ -40,6 +44,7 @@ class ChessGame {
     final white = game['white'] as String?;
     if (fen == null || white == null) return null;
     return ChessGame(
+      raw: Map<String, dynamic>.from(game),
       fen: fen,
       white: white,
       black: game['black'] as String?,
@@ -58,24 +63,18 @@ class ChessGame {
 
   bool isTurnOf(String uid) => !isOver && colorOf(uid) == turn;
 
-  static DocumentReference<Map<String, dynamic>> _chat(String code) =>
-      FirebaseFirestore.instance.collection('chats').doc(code);
-
-  static Future<void> start(String chatCode) => _chat(chatCode).update({
-        'game': {
-          // Who did what last, for the notification to the others.
-          'by': FirebaseAuth.instance.currentUser!.uid,
-          'event': 'start',
-          'at': FieldValue.serverTimestamp(),
-          'type': 'chess',
-          'pick': 'chess',
-          'fen': ch.Chess().fen,
-          'white': FirebaseAuth.instance.currentUser!.uid,
-          'black': null,
-          'from': null,
-          'to': null,
-          'result': null,
-        },
+  static Future<void> start(String chatCode) => GameStore.replace(chatCode, {
+        // Who did what last, for the notification to the others.
+        'by': currentUserId()!,
+        'event': 'start',
+        'type': 'chess',
+        'pick': 'chess',
+        'fen': ch.Chess().fen,
+        'white': currentUserId()!,
+        'black': null,
+        'from': null,
+        'to': null,
+        'result': null,
       });
 
   /// Plays a move on [game], the position on screen. A plain write, not
@@ -88,8 +87,7 @@ class ChessGame {
     String to, [
     String promotion = 'q',
   ]) {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final ref = _chat(chatCode);
+    final uid = currentUserId()!;
     return Future(() async {
       if (!game.isTurnOf(uid)) return;
       final chess = ch.Chess.fromFEN(game.fen);
@@ -100,15 +98,14 @@ class ChessGame {
           : chess.in_draw || chess.in_stalemate
               ? 'draw'
               : null;
-      await ref.update({
-        'game.by': uid,
-        'game.event': 'move',
-        'game.at': FieldValue.serverTimestamp(),
-        'game.fen': chess.fen,
-        if (mover == 'b' && game.black == null) 'game.black': uid,
-        'game.from': from,
-        'game.to': to,
-        'game.result': result,
+      await GameStore.change(chatCode, game.raw, {
+        'by': uid,
+        'event': 'move',
+        'fen': chess.fen,
+        if (mover == 'b' && game.black == null) 'black': uid,
+        'from': from,
+        'to': to,
+        'result': result,
       });
     });
   }
@@ -201,7 +198,7 @@ class _ChessBoardViewState extends State<ChessBoardView> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = currentUserId() ?? '';
     final game = widget.game;
     final chess = ch.Chess.fromFEN(game.fen);
     final mine = game.colorOf(uid);

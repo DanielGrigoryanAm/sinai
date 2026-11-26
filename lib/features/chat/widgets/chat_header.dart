@@ -12,6 +12,8 @@ import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/features/chat/widgets/notch_extras.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/chat_watch.dart';
 
 /// Chat header: the back and menu buttons are tabs growing out of the
 /// screen edges, with the chat name and status between them. Messages
@@ -47,17 +49,20 @@ class _ChatHeaderState extends State<ChatHeader> {
   /// The chat document, which holds the game.
   Map<String, dynamic>? _chat;
 
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _gameSub;
+  StreamSubscription<Map<String, dynamic>?>? _gameSub;
 
   @override
   void initState() {
     super.initState();
-    _gameSub = FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatCode)
-        .snapshots()
-        .listen((doc) {
-      if (mounted) setState(() => _chat = doc.data());
+    final chat = ApiConfig.useBackend
+        ? watchChat(widget.chatCode)
+        : FirebaseFirestore.instance
+            .collection('chats')
+            .doc(widget.chatCode)
+            .snapshots()
+            .map((doc) => doc.data());
+    _gameSub = chat.listen((data) {
+      if (mounted) setState(() => _chat = data);
     }, onError: (_) {});
   }
 

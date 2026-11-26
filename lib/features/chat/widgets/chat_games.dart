@@ -1,10 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/widgets/checkers_game.dart';
 import 'package:sinai/features/chat/widgets/chess_game.dart';
 import 'package:sinai/features/chat/widgets/tic_tac_toe.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/api/current_user.dart';
+import 'package:sinai/features/chat/widgets/game_store.dart';
 
 enum ChatGameType {
   ticTacToe('ttt', 'Tic-tac-toe'),
@@ -39,13 +39,15 @@ enum ChatGameType {
     final current = game is Map
         ? (game['type'] ?? (game['board'] == null ? null : 'ttt'))
         : null;
-    return FirebaseFirestore.instance.collection('chats').doc(chatCode).update(
-          current == null || current == type.id
-              ? {'game.pick': type.id}
-              : {
-                  'game': {'pick': type.id},
-                },
-        );
+    // Not stamped: picking doesn't notify anyone.
+    return current == null || current == type.id
+        ? GameStore.change(
+            chatCode,
+            game is Map ? Map<String, dynamic>.from(game) : {},
+            {'pick': type.id},
+            stamp: false,
+          )
+        : GameStore.replace(chatCode, {'pick': type.id}, stamp: false);
   }
 }
 
@@ -88,7 +90,7 @@ class ChatGames extends StatelessWidget {
 
   /// Whether the game waits on the current user.
   static bool waitsOnMe(Map<String, dynamic>? chat) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = currentUserId() ?? '';
     return (TicTacToe.fromChat(chat)?.isTurnOf(uid) ?? false) ||
         (ChessGame.fromChat(chat)?.isTurnOf(uid) ?? false) ||
         (CheckersGame.fromChat(chat)?.isTurnOf(uid) ?? false);
@@ -107,9 +109,11 @@ class ChatGames extends StatelessWidget {
 
   /// Ends the game without a result, keeping the pick.
   static Future<void> cancel(String chatCode, Map<String, dynamic>? chat) =>
-      FirebaseFirestore.instance.collection('chats').doc(chatCode).update({
-        'game': {'pick': ChatGameType.pickedIn(chat).id},
-      });
+      GameStore.replace(
+        chatCode,
+        {'pick': ChatGameType.pickedIn(chat).id},
+        stamp: false,
+      );
 
   /// Starts the picked game, keeping the pick.
   static Future<void> start(String chatCode, Map<String, dynamic>? chat) =>

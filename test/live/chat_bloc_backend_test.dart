@@ -16,6 +16,10 @@ import 'package:sinai/api/chats_api.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:sinai/features/chat/chat_status.dart';
+import 'package:sinai/features/chat/widgets/chat_games.dart';
+import 'package:sinai/features/chat/widgets/checkers_game.dart';
+import 'package:sinai/features/chat/widgets/chess_game.dart';
+import 'package:sinai/features/chat/widgets/tic_tac_toe.dart';
 import 'package:sinai/features/chat/typing_reporter.dart';
 import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/api/media_url.dart';
@@ -310,5 +314,71 @@ void main() {
     await bobEvents.stop();
     await ChatsApi.instance.deleteOrLeave(code, isOwner: true);
     await LiveSocket.instance.stop();
+  }, skip: enabled ? false : 'needs a backend; see the top of the file');
+
+  test('games: start, moves, pick, cancel', () async {
+    final alice = ApiClient.instance;
+    if (!alice.isSignedIn) {
+      FlutterSecureStorage.setMockInitialValues({});
+      await alice.startSession(await alice.postPublic(
+          '/v1/auth/guest', {'name': 'Alice'}) as Map<String, dynamic>);
+    }
+    final bob = ApiClient(store: MemoryStore());
+    await bob.startSession(await bob.postPublic(
+        '/v1/auth/guest', {'name': 'Bob'}) as Map<String, dynamic>);
+    final code = await ChatsApi.instance.create('Games test');
+    await bob.post('/v1/chats/$code/join');
+    Future<Map<String, dynamic>> chat() => ChatsApi.instance.chat(code);
+
+    // Tic-tac-toe is the default pick; Alice starts and plays X.
+    await ChatGames.start(code, await chat());
+    var ttt = TicTacToe.fromChat(await chat())!;
+    expect(ttt.x, alice.userId);
+    expect(ttt.isTurnOf(alice.userId!), isTrue);
+    await TicTacToe.move(code, ttt, 4);
+    var game = (await chat())['game'] as Map;
+    expect(game['board'][4], 'x');
+    expect(game['turn'], 'o');
+    expect(game['by'], alice.userId);
+    expect(game['event'], 'move');
+    expect(game['pick'], 'ttt', reason: 'a move keeps the rest of the game');
+
+    // Bob's move as O (written whole, the way the app does).
+    await bob.patch('/v1/chats/$code', {
+      'game': {
+        ...game,
+        'board': [...game['board']]..[0] = 'o',
+        'o': bob.userId, 'turn': 'x', 'by': bob.userId, 'at': 2,
+      },
+    });
+    ttt = TicTacToe.fromChat(await chat())!;
+    expect(ttt.o, bob.userId);
+    expect(ttt.isTurnOf(alice.userId!), isTrue);
+    expect(ChatGames.waitsOnMe(await chat()), isTrue);
+
+    // Picking chess puts the tic-tac-toe game away.
+    await ChatGameType.pick(code, await chat(), ChatGameType.chess);
+    expect((await chat())['game'], {'pick': 'chess'});
+    expect(ChatGameType.pickedIn(await chat()), ChatGameType.chess);
+
+    await ChatGames.start(code, await chat());
+    final chess = ChessGame.fromChat(await chat())!;
+    expect(chess.white, alice.userId);
+    await ChessGame.move(code, chess, 'e2', 'e4');
+    final moved = ChessGame.fromChat(await chat())!;
+    expect(moved.fen, contains(' b '));
+    expect(moved.from, 'e2');
+    expect(moved.to, 'e4');
+
+    await ChatGameType.pick(code, await chat(), ChatGameType.checkers);
+    await ChatGames.start(code, await chat());
+    final checkers = CheckersGame.fromChat(await chat())!;
+    expect(checkers.white, alice.userId);
+    expect(checkers.legalSteps(), isNotEmpty);
+
+    await ChatGames.cancel(code, await chat());
+    expect((await chat())['game'], {'pick': 'checkers'});
+
+    await ChatsApi.instance.deleteOrLeave(code, isOwner: true);
   }, skip: enabled ? false : 'needs a backend; see the top of the file');
 }

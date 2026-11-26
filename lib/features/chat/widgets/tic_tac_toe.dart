@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sinai/api/current_user.dart';
+import 'package:sinai/features/chat/widgets/game_store.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -8,6 +8,7 @@ import 'package:sinai/theme/color_theme.dart';
 /// plays O.
 class TicTacToe {
   const TicTacToe({
+    this.raw = const {},
     required this.board,
     required this.x,
     required this.o,
@@ -30,6 +31,9 @@ class TicTacToe {
   /// The three winning cells.
   final List<int>? line;
 
+  /// The game as stored, so a move can write it back whole.
+  final Map<String, dynamic> raw;
+
   bool get isOver => winner != null;
 
   static TicTacToe? fromChat(Map<String, dynamic>? chat) {
@@ -39,6 +43,7 @@ class TicTacToe {
     final x = game['x'] as String?;
     if (board == null || board.length != 9 || x == null) return null;
     return TicTacToe(
+      raw: Map<String, dynamic>.from(game),
       board: board,
       x: x,
       o: game['o'] as String?,
@@ -69,24 +74,18 @@ class TicTacToe {
     [2, 4, 6],
   ];
 
-  static DocumentReference<Map<String, dynamic>> _chat(String code) =>
-      FirebaseFirestore.instance.collection('chats').doc(code);
-
-  static Future<void> start(String chatCode) => _chat(chatCode).update({
-        'game': {
-          // Who did what last, for the notification to the others.
-          'by': FirebaseAuth.instance.currentUser!.uid,
-          'event': 'start',
-          'at': FieldValue.serverTimestamp(),
-          'type': 'ttt',
-          'pick': 'ttt',
-          'board': List.filled(9, ''),
-          'x': FirebaseAuth.instance.currentUser!.uid,
-          'o': null,
-          'turn': 'x',
-          'winner': null,
-          'line': null,
-        },
+  static Future<void> start(String chatCode) => GameStore.replace(chatCode, {
+        // Who did what last, for the notification to the others.
+        'by': currentUserId()!,
+        'event': 'start',
+        'type': 'ttt',
+        'pick': 'ttt',
+        'board': List.filled(9, ''),
+        'x': currentUserId()!,
+        'o': null,
+        'turn': 'x',
+        'winner': null,
+        'line': null,
       });
 
   /// Puts the user's mark on [cell], if it's their turn and the cell is free.
@@ -94,8 +93,7 @@ class TicTacToe {
   /// a transaction: Firestore shows it at once and syncs in the background,
   /// so the board doesn't wait for the network.
   static Future<void> move(String chatCode, TicTacToe game, int cell) {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final ref = _chat(chatCode);
+    final uid = currentUserId()!;
     return Future(() async {
       if (!game.isTurnOf(uid) || game.board[cell] != '') {
         return;
@@ -111,15 +109,14 @@ class TicTacToe {
           : board.every((c) => c != '')
               ? 'draw'
               : null;
-      await ref.update({
-        'game.by': uid,
-        'game.event': 'move',
-        'game.at': FieldValue.serverTimestamp(),
-        'game.board': board,
-        if (mark == 'o' && game.o == null) 'game.o': uid,
-        'game.turn': mark == 'x' ? 'o' : 'x',
-        'game.winner': winner,
-        'game.line': line,
+      await GameStore.change(chatCode, game.raw, {
+        'by': uid,
+        'event': 'move',
+        'board': board,
+        if (mark == 'o' && game.o == null) 'o': uid,
+        'turn': mark == 'x' ? 'o' : 'x',
+        'winner': winner,
+        'line': line,
       });
     });
   }
@@ -145,7 +142,7 @@ class TicTacToeBoard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = currentUserId() ?? '';
     final game = this.game;
 
     final hint = Text(

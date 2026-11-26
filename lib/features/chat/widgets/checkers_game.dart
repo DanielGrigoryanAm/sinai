@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:sinai/api/current_user.dart';
+import 'package:sinai/features/chat/widgets/game_store.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -20,6 +20,7 @@ class CheckersStep {
 /// 'W'/'B' kings. White starts at the bottom and moves first.
 class CheckersGame {
   const CheckersGame({
+    this.raw = const {},
     required this.board,
     required this.white,
     required this.black,
@@ -48,6 +49,9 @@ class CheckersGame {
   /// null while playing, then 'w' or 'b' (the winner).
   final String? result;
 
+  /// The game as stored, so a move can write it back whole.
+  final Map<String, dynamic> raw;
+
   bool get isOver => result != null;
 
   static String get initialBoard {
@@ -69,6 +73,7 @@ class CheckersGame {
     final white = game['white'] as String?;
     if (board == null || board.length != 64 || white == null) return null;
     return CheckersGame(
+      raw: Map<String, dynamic>.from(game),
       board: board,
       white: white,
       black: game['black'] as String?,
@@ -169,26 +174,20 @@ class CheckersGame {
     return captures.isNotEmpty ? captures : slides;
   }
 
-  static DocumentReference<Map<String, dynamic>> _chat(String code) =>
-      FirebaseFirestore.instance.collection('chats').doc(code);
-
-  static Future<void> start(String chatCode) => _chat(chatCode).update({
-        'game': {
-          // Who did what last, for the notification to the others.
-          'by': FirebaseAuth.instance.currentUser!.uid,
-          'event': 'start',
-          'at': FieldValue.serverTimestamp(),
-          'type': 'checkers',
-          'pick': 'checkers',
-          'board': initialBoard,
-          'white': FirebaseAuth.instance.currentUser!.uid,
-          'black': null,
-          'turn': 'w',
-          'chain': null,
-          'from': null,
-          'to': null,
-          'result': null,
-        },
+  static Future<void> start(String chatCode) => GameStore.replace(chatCode, {
+        // Who did what last, for the notification to the others.
+        'by': currentUserId()!,
+        'event': 'start',
+        'type': 'checkers',
+        'pick': 'checkers',
+        'board': initialBoard,
+        'white': currentUserId()!,
+        'black': null,
+        'turn': 'w',
+        'chain': null,
+        'from': null,
+        'to': null,
+        'result': null,
       });
 
   /// Plays a move on [game], the position on screen. A plain write, not
@@ -196,8 +195,7 @@ class CheckersGame {
   /// so the board doesn't wait for the network.
   static Future<void> move(
       String chatCode, CheckersGame game, int from, int to) {
-    final uid = FirebaseAuth.instance.currentUser!.uid;
-    final ref = _chat(chatCode);
+    final uid = currentUserId()!;
     return Future(() async {
       if (!game.isTurnOf(uid)) return;
       final step = game
@@ -233,17 +231,16 @@ class CheckersGame {
       final String? result =
           !goesOn && after.legalSteps().isEmpty ? game.turn : null;
 
-      await ref.update({
-        'game.by': uid,
-        'game.event': 'move',
-        'game.at': FieldValue.serverTimestamp(),
-        'game.board': board,
-        if (game.turn == 'b' && game.black == null) 'game.black': uid,
-        'game.turn': next,
-        'game.chain': goesOn ? to : null,
-        'game.from': from,
-        'game.to': to,
-        'game.result': result,
+      await GameStore.change(chatCode, game.raw, {
+        'by': uid,
+        'event': 'move',
+        'board': board,
+        if (game.turn == 'b' && game.black == null) 'black': uid,
+        'turn': next,
+        'chain': goesOn ? to : null,
+        'from': from,
+        'to': to,
+        'result': result,
       });
     });
   }
@@ -292,7 +289,7 @@ class _CheckersBoardViewState extends State<CheckersBoardView> {
   /// In the middle of a capture, the capturing piece stays picked.
   void _selectChain() {
     final game = widget.game;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = currentUserId() ?? '';
     if (game.chain != null && game.isTurnOf(uid)) {
       _selected = game.chain;
       _targets = {for (final s in game.legalSteps()) s.to};
@@ -301,7 +298,7 @@ class _CheckersBoardViewState extends State<CheckersBoardView> {
 
   void _tap(int square) {
     final game = widget.game;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = currentUserId() ?? '';
     if (_selected != null && _targets.contains(square)) {
       CheckersGame.move(widget.chatCode, widget.game, _selected!, square)
           .catchError((_) {});
@@ -329,7 +326,7 @@ class _CheckersBoardViewState extends State<CheckersBoardView> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final uid = currentUserId() ?? '';
     final game = widget.game;
     final mine = game.colorOf(uid);
     final flipped = mine == 'b';
