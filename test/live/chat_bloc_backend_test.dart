@@ -15,7 +15,10 @@ import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/features/chat/chat_status.dart';
+import 'package:sinai/features/chat/quick_reactions_store.dart';
+import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/features/chat/widgets/checkers_game.dart';
 import 'package:sinai/features/chat/widgets/chess_game.dart';
@@ -380,5 +383,29 @@ void main() {
     expect((await chat())['game'], {'pick': 'checkers'});
 
     await ChatsApi.instance.deleteOrLeave(code, isOwner: true);
+  }, skip: enabled ? false : 'needs a backend; see the top of the file');
+
+  test('quick reactions follow the account', () async {
+    final alice = ApiClient.instance;
+    if (!alice.isSignedIn) {
+      FlutterSecureStorage.setMockInitialValues({});
+      await alice.startSession(await alice.postPublic(
+          '/v1/auth/guest', {'name': 'Alice'}) as Map<String, dynamic>);
+    }
+    final store = QuickReactionsStore.instance;
+    store.start();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    expect(store.reactions.value, Reactions.quick);
+
+    final pick = Reactions.quick.last;
+    await store.setSlot(0, pick);
+    expect(store.reactions.value.first, pick);
+    final saved = (await AuthApi.instance.me()).quickReactions!;
+    expect(saved.first, pick);
+    expect(saved.toSet(), hasLength(Reactions.quick.length),
+        reason: 'the two slots swapped, no repeats');
+
+    await store.reset();
+    expect((await AuthApi.instance.me()).quickReactions, Reactions.quick);
   }, skip: enabled ? false : 'needs a backend; see the top of the file');
 }

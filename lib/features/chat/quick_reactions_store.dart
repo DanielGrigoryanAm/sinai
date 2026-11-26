@@ -4,10 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/api/current_user.dart';
 
 /// The user's own set of quick reactions, shown in the message menu and the
-/// drag strip. Stored in `users/{uid}.quickReactions`, so it follows the
-/// account; Firestore's local cache makes it available offline.
+/// drag strip. Stored with the account, so it follows the user: on the
+/// backend's profile, or in `users/{uid}.quickReactions` in Firestore.
 class QuickReactionsStore {
   QuickReactionsStore._();
 
@@ -32,6 +35,10 @@ class QuickReactionsStore {
 
   /// Starts following the saved set. Safe to call repeatedly.
   void start() {
+    if (ApiConfig.useBackend) {
+      _startBackend();
+      return;
+    }
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || uid == _uid) return;
     _uid = uid;
@@ -45,6 +52,22 @@ class QuickReactionsStore {
       },
       onError: (Object e) => debugPrint('Quick reactions unavailable: $e'),
     );
+  }
+
+  Future<void> _startBackend() async {
+    final uid = currentUserId();
+    if (uid == null || uid == _uid) return;
+    _uid = uid;
+    try {
+      final saved = _parse((await AuthApi.instance.me()).quickReactions);
+      if (saved != null && !listEquals(saved, reactions.value)) {
+        reactions.value = saved;
+      }
+    } catch (e) {
+      // Retried on the next chat opened.
+      _uid = null;
+      debugPrint('Quick reactions unavailable: $e');
+    }
   }
 
   /// A saved set is used only when it is complete and has no repeats.
@@ -74,6 +97,10 @@ class QuickReactionsStore {
     // Shown at once; the write catches up in the background.
     reactions.value = List.unmodifiable(list);
     try {
+      if (ApiConfig.useBackend) {
+        await AuthApi.instance.setQuickReactions(list);
+        return;
+      }
       await _doc?.set({'quickReactions': list}, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Saving quick reactions failed: $e');

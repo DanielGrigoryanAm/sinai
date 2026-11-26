@@ -16,6 +16,8 @@ import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/auth_api.dart';
 
 /// Adds a phone number to the account, or restores an account by its
 /// number. Pops with `true` when a number was linked to the current
@@ -156,6 +158,10 @@ class _PhoneScreenState extends State<PhoneScreen> {
       // This phone's notifications belong to the account being left.
       await NotificationService.instance.removeTokenFromCurrentUser();
       await _auth.signIn(credential);
+      // The backend session follows the Firebase account.
+      if (ApiConfig.useBackend) {
+        await AuthApi.instance.switchToFirebaseAccount();
+      }
       await NotificationService.instance.addTokenToCurrentUser();
       QuickReactionsStore.instance.start();
 
