@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:sinai/common/app_icons.dart';
 
 import 'package:auto_route/auto_route.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
@@ -246,13 +244,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
   @override
   void initState() {
     super.initState();
-    final chat = ApiConfig.useBackend
-        ? watchChat(widget.chatCode)
-        : FirebaseFirestore.instance
-            .collection('chats')
-            .doc(widget.chatCode)
-            .snapshots()
-            .map((doc) => doc.data());
+    final chat = watchChat(widget.chatCode);
     _nameSub = chat.listen((data) {
       final name = (data?['name'] as String?)?.trim();
       final photoUrl = data?['photoUrl'] as String?;

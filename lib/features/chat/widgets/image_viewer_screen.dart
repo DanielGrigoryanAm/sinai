@@ -1,5 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:sinai/common/app_icons.dart';
@@ -28,10 +28,11 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
       if (!await Gal.hasPermission() && !await Gal.requestPermission()) {
         message = 'Allow access to photos to save pictures';
       } else {
-        final bytes = await FirebaseStorage.instance
-            .refFromURL(widget.imageUrl)
-            .getData(20 * 1024 * 1024);
-        if (bytes == null) throw StateError('Empty download');
+        // Usually already in the cache from being shown.
+        final source = mediaUrl(widget.imageUrl);
+        final file = await DefaultCacheManager()
+            .getSingleFile(source.url, key: source.cacheKey);
+        final bytes = await file.readAsBytes();
 
         await Gal.putImageBytes(bytes);
         message = 'Saved to gallery';

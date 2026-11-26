@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
@@ -7,7 +6,6 @@ import 'package:sinai/features/chat/widgets/voice_player.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/api/media_url.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chats_api.dart';
 
 /// All photos and voice messages of a chat, newest first.
@@ -21,42 +19,24 @@ class ChatMediaScreen extends StatefulWidget {
 }
 
 class _ChatMediaScreenState extends State<ChatMediaScreen> {
-  static const _limit = 300;
-
-  late final _messages = FirebaseFirestore.instance
-      .collection('chats')
-      .doc(widget.chatCode)
-      .collection('messages');
-
   /// Messages with [field] set, newest first. Filtering on the field alone
   /// needs no composite index; the order is fixed up here.
   late final Future<List<Map<String, dynamic>>> _photos = _load('imageUrl');
   late final Future<List<Map<String, dynamic>>> _voices = _load('audioUrl');
 
   Future<List<Map<String, dynamic>>> _load(String field) async {
-    if (ApiConfig.useBackend) {
-      final list = await ChatsApi.instance
-          .media(widget.chatCode, field == 'imageUrl' ? 'image' : 'voice');
-      // Shaped like the Firestore documents the rows read.
-      return [
-        for (final m in list)
-          {
-            'imageUrl': m.imageUrl,
-            'audioUrl': m.audioUrl,
-            'audioDurationMs': m.audioDurationMs,
-            'senderName': m.senderName,
-            'createdAt':
-                m.createdAt == null ? null : Timestamp.fromDate(m.createdAt!),
-          },
-      ];
-    }
-    final snapshot =
-        await _messages.where(field, isGreaterThan: '').limit(_limit).get();
-    final items = snapshot.docs.map((d) => d.data()).toList();
-    DateTime at(Map<String, dynamic> m) =>
-        (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
-    items.sort((a, b) => at(b).compareTo(at(a)));
-    return items;
+    final list = await ChatsApi.instance
+        .media(widget.chatCode, field == 'imageUrl' ? 'image' : 'voice');
+    return [
+      for (final m in list)
+        {
+          'imageUrl': m.imageUrl,
+          'audioUrl': m.audioUrl,
+          'audioDurationMs': m.audioDurationMs,
+          'senderName': m.senderName,
+          'createdAt': m.createdAt,
+        },
+    ];
   }
 
   @override
@@ -199,7 +179,7 @@ class _VoiceRow extends StatelessWidget {
     final url = message['audioUrl'] as String;
     final recorded = Duration(
         milliseconds: (message['audioDurationMs'] as num?)?.toInt() ?? 0);
-    final at = (message['createdAt'] as Timestamp?)?.toDate();
+    final at = message['createdAt'] as DateTime?;
     final localizations = MaterialLocalizations.of(context);
     final when = at == null
         ? ''

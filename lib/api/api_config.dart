@@ -8,11 +8,6 @@ abstract final class ApiConfig {
     defaultValue: 'https://5-222-26-206.sslip.io',
   );
 
-  /// Turns the move from Firebase to the backend on, screen by screen as
-  /// they are switched over:
-  ///   flutter run --dart-define=USE_BACKEND=true
-  static const useBackend = bool.fromEnvironment('USE_BACKEND');
-
   static Uri uri(String path, [Map<String, String>? query]) =>
       Uri.parse(baseUrl).replace(path: path, queryParameters: query);
 

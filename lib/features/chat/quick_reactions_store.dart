@@ -1,16 +1,10 @@
-import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:sinai/features/chat/widgets/reactions.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/current_user.dart';
+import 'package:sinai/features/chat/widgets/reactions.dart';
 
 /// The user's own set of quick reactions, shown in the message menu and the
-/// drag strip. Stored with the account, so it follows the user: on the
-/// backend's profile, or in `users/{uid}.quickReactions` in Firestore.
+/// drag strip. Kept on the backend profile, so it follows the account.
 class QuickReactionsStore {
   QuickReactionsStore._();
 
@@ -20,41 +14,13 @@ class QuickReactionsStore {
   final ValueNotifier<List<String>> reactions =
       ValueNotifier(List.unmodifiable(Reactions.quick));
 
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _subscription;
   String? _uid;
 
   /// The reaction a double tap leaves: the first one in the set.
   String get like => reactions.value.first;
 
-  DocumentReference<Map<String, dynamic>>? get _doc {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    return uid == null
-        ? null
-        : FirebaseFirestore.instance.collection('users').doc(uid);
-  }
-
-  /// Starts following the saved set. Safe to call repeatedly.
-  void start() {
-    if (ApiConfig.useBackend) {
-      _startBackend();
-      return;
-    }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || uid == _uid) return;
-    _uid = uid;
-    _subscription?.cancel();
-    _subscription = _doc!.snapshots().listen(
-      (snapshot) {
-        final saved = _parse(snapshot.data()?['quickReactions']);
-        if (saved != null && !listEquals(saved, reactions.value)) {
-          reactions.value = saved;
-        }
-      },
-      onError: (Object e) => debugPrint('Quick reactions unavailable: $e'),
-    );
-  }
-
-  Future<void> _startBackend() async {
+  /// Loads the saved set, once per account. Safe to call repeatedly.
+  Future<void> start() async {
     final uid = currentUserId();
     if (uid == null || uid == _uid) return;
     _uid = uid;
@@ -64,7 +30,7 @@ class QuickReactionsStore {
         reactions.value = saved;
       }
     } catch (e) {
-      // Retried on the next chat opened.
+      // Tried again on the next chat opened.
       _uid = null;
       debugPrint('Quick reactions unavailable: $e');
     }
@@ -97,11 +63,7 @@ class QuickReactionsStore {
     // Shown at once; the write catches up in the background.
     reactions.value = List.unmodifiable(list);
     try {
-      if (ApiConfig.useBackend) {
-        await AuthApi.instance.setQuickReactions(list);
-        return;
-      }
-      await _doc?.set({'quickReactions': list}, SetOptions(merge: true));
+      await AuthApi.instance.setQuickReactions(list);
     } catch (e) {
       debugPrint('Saving quick reactions failed: $e');
     }

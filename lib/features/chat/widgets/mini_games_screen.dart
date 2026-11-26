@@ -1,10 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chat_watch.dart';
 
 /// Picks the game a pull on the notch starts. The pick belongs to the chat,
@@ -14,13 +12,7 @@ class MiniGamesScreen extends StatelessWidget {
 
   final String chatCode;
 
-  Stream<Map<String, dynamic>?> get _chat => ApiConfig.useBackend
-      ? watchChat(chatCode)
-      : FirebaseFirestore.instance
-          .collection('chats')
-          .doc(chatCode)
-          .snapshots()
-          .map((doc) => doc.data());
+  Stream<Map<String, dynamic>?> get _chat => watchChat(chatCode);
 
   @override
   Widget build(BuildContext context) {

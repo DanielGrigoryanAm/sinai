@@ -1,17 +1,14 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'dart:async';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chats_api.dart';
 
 /// Searches a chat's messages by text. Pops with the id of the tapped
 /// message, so the chat can scroll to it.
 ///
-/// Firestore has no full-text search, so the chat's messages are loaded
-/// once when the screen opens and filtered on the phone.
+/// The server searches the whole chat, however long.
 class MessageSearchScreen extends StatefulWidget {
   const MessageSearchScreen({super.key, required this.chatCode});
 
@@ -37,16 +34,13 @@ class _SearchItem {
 
 class _MessageSearchScreenState extends State<MessageSearchScreen> {
   final TextEditingController _query = TextEditingController();
-  late Future<List<_SearchItem>> _messages =
-      ApiConfig.useBackend ? Future.value(const []) : _load();
+  Future<List<_SearchItem>> _messages = Future.value(const []);
 
-  /// On the backend the search runs on the server, a moment after the user
-  /// stops typing; Firebase loads the chat once and filters here.
+  /// The search runs on the server, a moment after the user stops typing.
   Timer? _searchSoon;
   String _searched = '';
 
   void _onQueryChanged() {
-    if (!ApiConfig.useBackend) return;
     final query = _query.text.trim();
     _searchSoon?.cancel();
     if (query.length < 2 || query == _searched) return;
@@ -75,26 +69,6 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
     _searchSoon?.cancel();
     _query.dispose();
     super.dispose();
-  }
-
-  Future<List<_SearchItem>> _load() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('chats')
-        .doc(widget.chatCode)
-        .collection('messages')
-        .orderBy('createdAt', descending: true)
-        .get();
-
-    return [
-      for (final doc in snapshot.docs)
-        if ((doc.data()['text'] as String?)?.trim().isNotEmpty ?? false)
-          _SearchItem(
-            id: doc.id,
-            text: doc.data()['text'] as String,
-            senderName: (doc.data()['senderName'] as String?) ?? 'Guest',
-            createdAt: (doc.data()['createdAt'] as Timestamp?)?.toDate(),
-          ),
-    ];
   }
 
   @override

@@ -1,12 +1,12 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/draft_store.dart';
-import 'package:sinai/features/presence/presence_service.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -29,19 +29,20 @@ void main() async {
 
   // The backend session comes from the Firebase account, so people keep
   // their chats when the app moves over.
-  if (ApiConfig.useBackend) {
-    try {
-      await AuthApi.instance.ensureSignedIn();
-      LiveSocket.instance
-        ..start()
-        ..followAppLifecycle();
-    } catch (e) {
-      debugPrint('Backend sign-in failed: $e');
-    }
+  // Offline at start: keep trying in the background; the socket connects
+  // as soon as there is a session.
+  if (!await _signIn()) {
+    unawaited(() async {
+      while (!await _signIn()) {
+        await Future<void>.delayed(const Duration(seconds: 5));
+      }
+    }());
   }
+  // Being online is having the live socket open.
+  LiveSocket.instance
+    ..start()
+    ..followAppLifecycle();
 
-  // On the backend, being online is having the live socket open.
-  if (!ApiConfig.useBackend) PresenceService.instance.start();
   await DraftStore.instance.load();
   await ThemeStore.instance.load();
 
@@ -76,5 +77,15 @@ class MyApp extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<bool> _signIn() async {
+  try {
+    await AuthApi.instance.ensureSignedIn();
+    return true;
+  } catch (e) {
+    debugPrint('Backend sign-in failed: $e');
+    return false;
   }
 }

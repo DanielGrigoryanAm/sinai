@@ -1,11 +1,6 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
-import 'package:sinai/features/presence/presence_service.dart';
-import 'package:sinai/features/presence/realtime_db.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:sinai/api/live_socket.dart';
@@ -31,23 +26,12 @@ class ChatStatusController {
   ChatStatusController(this.chatCode) {
     // Typing and "online" expire with time, not only with new data.
     _ticker = Timer.periodic(const Duration(seconds: 5), (_) => _update());
-    if (ApiConfig.useBackend) {
-      _watchBackend();
-      return;
-    }
-    _chatSubscription = FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatCode)
-        .snapshots()
-        .listen(_onChat, onError: (Object _) {});
-    _typingSubscription = RealtimeDb.typing(chatCode)
-        .onValue
-        .listen(_onTyping, onError: (Object _) {});
+    _watch();
   }
 
-  /// On the backend the live chat view brings members with their online
-  /// status, and the socket brings typing marks.
-  void _watchBackend() {
+  /// The live chat view brings members with their online status, and the
+  /// socket brings typing marks.
+  void _watch() {
     _chatSubscription = watchChat(chatCode).listen((data) {
       if (data == null) return;
       final members = data['members'] as Map<String, Map<String, dynamic>>;
@@ -97,7 +81,6 @@ class ChatStatusController {
 
   StreamSubscription? _chatSubscription;
   StreamSubscription? _typingSubscription;
-  final List<StreamSubscription> _presenceSubscriptions = [];
   Timer? _ticker;
 
   List<String> _others = const [];
@@ -109,67 +92,8 @@ class ChatStatusController {
 
   String? get _me => currentUserId();
 
-  void _onChat(DocumentSnapshot<Map<String, dynamic>> snapshot) {
-    final data = snapshot.data();
-    if (data == null) return;
-
-    final others = ((data['participantIds'] as List?) ?? const [])
-        .whereType<String>()
-        .where((uid) => uid != _me)
-        .toList();
-    if (!_sameMembers(others)) {
-      _others = others;
-      _watchPresence();
-    }
-
-    _update();
-  }
-
-  void _onTyping(DatabaseEvent event) {
-    final now = DateTime.now();
-    final raw = event.snapshot.value;
-    final typing = raw is Map ? raw : const {};
-    _typing.removeWhere((uid, _) => !typing.containsKey(uid));
-    for (final entry in typing.entries) {
-      final uid = entry.key;
-      final value = entry.value;
-      if (uid is! String || uid == _me || value is! Map) continue;
-      final stamp = value['at'];
-      final previous = _typing[uid];
-      // A new stamp means the person is still typing.
-      if (previous == null || previous.stamp != stamp) {
-        _typing[uid] = (
-          name: (value['name'] as String?) ?? 'Someone',
-          stamp: stamp,
-          seenAt: now,
-        );
-      }
-    }
-    _update();
-  }
-
   bool _sameMembers(List<String> others) =>
       others.length == _others.length && others.toSet().containsAll(_others);
-
-  void _watchPresence() {
-    for (final subscription in _presenceSubscriptions) {
-      subscription.cancel();
-    }
-    _presenceSubscriptions.clear();
-    _presence.removeWhere((uid, _) => !_others.contains(uid));
-
-    for (final uid in _others) {
-      _presenceSubscriptions.add(
-        RealtimeDb.presence(uid).onValue.listen(
-          (event) {
-            _presence[uid] = Presence.fromValue(event.snapshot.value);
-            _update();
-          },
-          onError: (Object _) {},
-        ),
-      );
-    }
-  }
 
   void _update() {
     status.value = _compute();
@@ -251,10 +175,16 @@ class ChatStatusController {
   void dispose() {
     _chatSubscription?.cancel();
     _typingSubscription?.cancel();
-    for (final subscription in _presenceSubscriptions) {
-      subscription.cancel();
-    }
     _ticker?.cancel();
     status.dispose();
   }
+}
+
+/// Whether a member is online, and when they last were.
+class Presence {
+  const Presence({required this.online, required this.lastSeen, this.name});
+
+  final bool online;
+  final DateTime? lastSeen;
+  final String? name;
 }

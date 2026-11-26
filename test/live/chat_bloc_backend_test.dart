@@ -1,6 +1,6 @@
 // Drives the real ChatBloc on the backend; needs a running server:
 //   flutter test test/live --dart-define=API_BASE_URL=http://localhost:8080 \
-//     --dart-define=LIVE_TEST=true --dart-define=USE_BACKEND=true
+//     --dart-define=LIVE_TEST=true
 @Tags(['live'])
 library;
 
@@ -48,7 +48,7 @@ Future<T> next<T extends ChatState>(ChatBloc bloc, [bool Function(T)? test]) =>
         .timeout(const Duration(seconds: 8));
 
 void main() {
-  const enabled = bool.fromEnvironment('LIVE_TEST') && ApiConfig.useBackend;
+  const enabled = bool.fromEnvironment('LIVE_TEST');
 
   test('chats and messages through the backend', () async {
     FlutterSecureStorage.setMockInitialValues({});

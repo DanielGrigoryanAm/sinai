@@ -1,19 +1,15 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:sinai/api/api_client.dart';
-import 'package:sinai/api/api_config.dart';
 
 /// Registers this device for push notifications and opens the right chat
 /// when the user taps one.
 ///
-/// The device token goes to the backend (`PUT /v1/devices`), or to
-/// `users/{uid}.fcmTokens` in Firestore for the Firebase app's Cloud
-/// Functions.
+/// The device token goes to the backend (`PUT /v1/devices`), which sends
+/// the pushes.
 class NotificationService {
   NotificationService._();
 
@@ -68,57 +64,23 @@ class NotificationService {
   /// Called before signing in to another account, while the current one
   /// may still be edited.
   Future<void> removeTokenFromCurrentUser() async {
-    if (ApiConfig.useBackend) {
-      try {
-        final token = await FirebaseMessaging.instance.getToken();
-        if (token != null) {
-          await ApiClient.instance
-              .delete('/v1/devices/${Uri.encodeComponent(token)}');
-        }
-      } catch (e) {
-        debugPrint('Could not detach the push token: $e');
-      }
-      return;
-    }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
     try {
       final token = await FirebaseMessaging.instance.getToken();
-      if (token == null) return;
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        {
-          'fcmTokens': FieldValue.arrayRemove([token])
-        },
-        SetOptions(merge: true),
-      );
+      if (token != null) {
+        await ApiClient.instance
+            .delete('/v1/devices/${Uri.encodeComponent(token)}');
+      }
     } catch (e) {
       debugPrint('Could not detach the push token: $e');
     }
   }
 
   Future<void> _saveToken(String token) async {
-    if (ApiConfig.useBackend) {
-      try {
-        await ApiClient.instance.put('/v1/devices', {
-          'token': token,
-          'platform': Platform.isIOS ? 'ios' : 'android',
-        });
-      } catch (e) {
-        debugPrint('Could not save the push token: $e');
-      }
-      return;
-    }
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
     try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        {
-          'fcmTokens': FieldValue.arrayUnion([token]),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      await ApiClient.instance.put('/v1/devices', {
+        'token': token,
+        'platform': Platform.isIOS ? 'ios' : 'android',
+      });
     } catch (e) {
       debugPrint('Could not save the push token: $e');
     }

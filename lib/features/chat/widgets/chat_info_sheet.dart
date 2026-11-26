@@ -1,14 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/features/chat/widgets/mini_games_screen.dart';
 import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:sinai/api/api_config.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/current_user.dart';
@@ -16,8 +11,6 @@ import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/common/photo_compress.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chat/chat_status.dart';
-import 'package:sinai/features/presence/presence_service.dart';
-import 'package:sinai/features/presence/realtime_db.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/common/app_icons.dart';
@@ -105,13 +98,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
   static const _dangerColor = Color(0xFFDC2626);
 
   // Live, so a new photo or a removed member shows at once.
-  late final Stream<Map<String, dynamic>?> _chat = ApiConfig.useBackend
-      ? watchChat(widget.chatCode)
-      : FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatCode)
-          .snapshots()
-          .map((doc) => doc.data());
+  late final Stream<Map<String, dynamic>?> _chat = watchChat(widget.chatCode);
   bool _copied = false;
   bool _uploadingPhoto = false;
 
@@ -130,41 +117,16 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
       if (picked == null) return;
       setState(() => _uploadingPhoto = true);
 
-      if (ApiConfig.useBackend) {
-        final photo = await compressPhoto(
-          await picked.readAsBytes(),
-          picked.mimeType ?? 'image/jpeg',
-          maxSide: 600,
-        );
-        await ChatsApi.instance.setPhoto(
-          widget.chatCode,
-          photo.bytes,
-          photo.type,
-        );
-        return;
-      }
-
-      final ref = FirebaseStorage.instance.ref(
-        'chats/${widget.chatCode}/avatar/'
-        '${DateTime.now().millisecondsSinceEpoch}.jpg',
-      );
-      await ref.putData(
+      final photo = await compressPhoto(
         await picked.readAsBytes(),
-        SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
+        picked.mimeType ?? 'image/jpeg',
+        maxSide: 600,
       );
-      final url = await ref.getDownloadURL();
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatCode)
-          .update({'photoUrl': url});
-
-      // The previous photo is no longer used.
-      if (oldPhotoUrl != null && oldPhotoUrl.isNotEmpty) {
-        FirebaseStorage.instance
-            .refFromURL(oldPhotoUrl)
-            .delete()
-            .catchError((Object _) {});
-      }
+      await ChatsApi.instance.setPhoto(
+        widget.chatCode,
+        photo.bytes,
+        photo.type,
+      );
     } catch (e) {
       debugPrint('Changing the chat photo failed: $e');
       messenger.showSnackBar(
@@ -188,16 +150,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
     );
     if (!confirmed) return;
     try {
-      if (ApiConfig.useBackend) {
-        await ChatsApi.instance.removeMember(widget.chatCode, uid);
-        return;
-      }
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatCode)
-          .update({
-        'participantIds': FieldValue.arrayRemove([uid]),
-      });
+      await ChatsApi.instance.removeMember(widget.chatCode, uid);
     } catch (e) {
       debugPrint('Removing a member failed: $e');
       messenger.showSnackBar(
@@ -237,14 +190,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
     final trimmed = name?.trim() ?? '';
     if (trimmed.isEmpty || trimmed == current) return;
     try {
-      if (ApiConfig.useBackend) {
-        await ChatsApi.instance.rename(widget.chatCode, trimmed);
-        return;
-      }
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatCode)
-          .update({'name': trimmed});
+      await ChatsApi.instance.rename(widget.chatCode, trimmed);
     } catch (e) {
       debugPrint('Renaming the chat failed: $e');
       messenger.showSnackBar(
@@ -597,15 +543,12 @@ class _MemberRow extends StatelessWidget {
     this.info,
   });
 
-  /// Name and online status from the backend; null reads them from
-  /// Firebase instead.
+  /// Name and online status, as the chat brings them.
   final Map<String, dynamic>? info;
 
   final String uid;
   final String chatCode;
 
-  /// Cached so sheet rebuilds don't refetch or flash "Member".
-  static final _senderNames = <String, Future<String?>>{};
   final bool isMe;
   final bool isOwner;
 
@@ -614,51 +557,14 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final known = info;
-    if (known != null) {
-      final given = (known['name'] as String?) ?? '';
-      final name = given.isNotEmpty ? given : (isMe ? 'You' : 'Member');
-      return _content(
-        context,
-        name,
-        known['online'] == true,
-        known['lastSeen'] as DateTime?,
-      );
-    }
-
-    // Members on older app versions don't publish their name in presence;
-    // fall back to the name on one of their messages in this chat.
-    final senderName = _senderNames.putIfAbsent(
-        '$chatCode/$uid',
-        () => FirebaseFirestore.instance
-            .collection('chats')
-            .doc(chatCode)
-            .collection('messages')
-            .where('senderId', isEqualTo: uid)
-            .limit(1)
-            .get()
-            .then((q) => q.docs.isEmpty
-                ? null
-                : (q.docs.first.data()['senderName'] as String?)?.trim())
-            .catchError((_) => null));
-
-    return FutureBuilder<String?>(
-      future: senderName,
-      builder: (context, nameSnap) => StreamBuilder<DatabaseEvent>(
-        stream: RealtimeDb.presence(uid).onValue,
-        builder: (context, snapshot) {
-          final presence = Presence.fromValue(snapshot.data?.snapshot.value);
-          final myName = FirebaseAuth.instance.currentUser?.displayName;
-          final name = isMe
-              ? (myName?.trim().isNotEmpty ?? false ? myName!.trim() : 'You')
-              : (presence.name?.trim().isNotEmpty ?? false
-                  ? presence.name!.trim()
-                  : (nameSnap.data?.isNotEmpty ?? false
-                      ? nameSnap.data!
-                      : 'Member'));
-          return _content(context, name, presence.online, presence.lastSeen);
-        },
-      ),
+    final known = info ?? const {};
+    final given = (known['name'] as String?) ?? '';
+    final name = given.isNotEmpty ? given : (isMe ? 'You' : 'Member');
+    return _content(
+      context,
+      name,
+      known['online'] == true,
+      known['lastSeen'] as DateTime?,
     );
   }
 
