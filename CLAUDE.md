@@ -17,14 +17,14 @@ next" or before a bigger feature). Backend: `../sinai-go` (its own
 - Own Go backend over HTTPS + WebSocket: `lib/api/` (`ApiConfig.baseUrl`
   defaults to `https://5-222-26-206.sslip.io`, override with
   `--dart-define=API_BASE_URL=...`).
-- Firebase only for: Auth (anonymous, Google, phone—phone is off),
+- Firebase only for: Auth (Google only; phone is built but off; no anonymous accounts),
   Messaging (push), Remote Config (update banner). No Firestore in the app;
   `functions/` is a leftover from the Firebase era.
 - Media in Cloudflare R2 via signed URLs from the backend.
 
 ## Map of `lib/`
 
-- `main.dart` — start: Firebase, anonymous sign-in, backend session
+- `main.dart` — start: Firebase, signs out leftover anonymous accounts, backend session
   (`AuthApi`), `LiveSocket`, update check, router, `toastOverlay`.
 - `api/` — `ApiClient` (tokens, refresh), `LiveSocket` (events
   `{type, chat, data}`), `ChatsApi`, `chat_watch.dart` (live chat view:

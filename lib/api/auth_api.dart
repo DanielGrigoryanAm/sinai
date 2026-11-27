@@ -29,8 +29,7 @@ class ApiUser {
 
 /// Signs the user in to the backend.
 ///
-/// New users sign in to Firebase with Google on onboarding (older ones may
-/// still be anonymous). The backend session is made from the Firebase ID
+/// Users sign in to Firebase with Google on onboarding. The backend session is made from the Firebase ID
 /// token: the backend finds the account by its Firebase uid, or makes a
 /// new one the first time.
 class AuthApi {

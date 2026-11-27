@@ -7,7 +7,9 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
-- 2026-11-27 — Sign-in required: onboarding is now only "Continue with Google" (no name field, no anonymous sign-in, Restore screen removed); the backend finds the account by Firebase uid or makes one, name taken from Google (`onboarding_screen.dart`, `account_link.dart` `signInWith`, `account_options.dart`, `main.dart`, `onboarding_prefs.dart`, `auth_api.dart`, router). Old anonymous users keep working. Not checked on a device.
+- 2026-11-27 — backend: no anonymous accounts — `POST /v1/auth/guest` and `users.Create` removed, `/v1/auth/firebase` refuses tokens whose `sign_in_provider` is anonymous; smoke signs in via a fake Firebase on :9098 (`FIREBASE_TEST_CERTS_URL`) (`internal/auth`, `internal/users`, `internal/config`, `cmd/smoke`). Branch `feature/google-sign-in`, not deployed; `go test` passes, smoke not run (local Docker disk I/O error).
+- 2026-11-27 — App: no anonymous accounts — a leftover anonymous Firebase user is signed out at start (push token detached, backend session ended) and sees onboarding; profile → Account only shows the Google account (`main.dart`, `account_options.dart`). Not checked on a device.
+- 2026-11-27 — Sign-in required: onboarding is now only "Continue with Google" (no name field, no anonymous sign-in, Restore screen removed); the backend finds the account by Firebase uid or makes one, name taken from Google (`onboarding_screen.dart`, `account_link.dart` `signInWith`, `account_options.dart`, `main.dart`, `onboarding_prefs.dart`, `auth_api.dart`, router). Not checked on a device.
 - 2026-11-27 — Onboarding: gyro-floating mountain picture replaced by a plain 200 px circle with the same image (`onboarding_screen.dart`); `gyro_horizontal_background.dart` now unused. Not checked on a device.
 - 2026-11-27 — Messages screen: plus and profile icons drawn without a circle (`PlusIcon`, `ProfileIcon` in `app_icons.dart`), new-chat button 64→56 (`chats_screen.dart`). Not checked on a device.
 - 2026-11-27 — Play/pause icons centred (glyphs sit left in the font): `PlayPauseIcon` in `app_icons.dart`, used in voice bubble, media screen, watch-together controls. Not checked on a device.
@@ -43,18 +45,20 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 - **No phone sign-in for now**: every SMS costs money (`FeatureFlags.phoneSignIn`).
 - **No WhatsApp sign-in**: there is no "Sign in with WhatsApp"; codes via
   WhatsApp Business API are paid.
-- **Signing in is the gate**: no account without Google (later Telegram).
-  The same Google account always brings the same Sinai account back.
-  Users who were anonymous before this keep working; profile → Account
-  lets them add Google.
+- **Signing in is the gate**: no account without Google (later Telegram),
+  no anonymous accounts in the app or the backend. The same Google
+  account always brings the same Sinai account back. Anonymous accounts
+  left from older versions are signed out; their data stays in the DB.
+- Deploy the backend only together with the app release: old app
+  versions sign in anonymously and would stop getting new sessions.
 
 ## Planned / ideas
 
 - Next: one-to-one chats. You add someone by their code; the chat shows
   the other person's name (and they see yours) instead of a chat name.
   Group chats by code stay as a secondary kind.
-- Backend: refuse new accounts from anonymous Firebase tokens and drop
-  `POST /v1/auth/guest`, so the rule holds for old app versions too.
+- Turn off the Anonymous provider in the Firebase console after the
+  release (Daniel).
 - Telegram sign-in: bot + Login Widget, verified by the Go backend, which
   issues a Firebase custom token; link it like Google.
 - Check Google sign-in end to end on both phones (configs are in place;

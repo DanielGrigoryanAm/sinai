@@ -9,27 +9,6 @@ import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
-/// Picks a Google account and adds it to this account, or moves to the
-/// account it belongs to. True when it was added here.
-Future<bool> continueWithGoogle(BuildContext context) async {
-  final auth = AuthRepository();
-  try {
-    final credential = await auth.googleCredential();
-    if (!context.mounted) return false;
-    final outcome = await linkOrSwitch(context, credential,
-        restore: false, what: 'Google account');
-    if (outcome == LinkOutcome.linked) {
-      showToast('Google added', kind: ToastKind.success);
-      return true;
-    }
-  } on SignInCancelled {
-    // Closed the Google window: nothing to say.
-  } on PhoneAuthFailure catch (e) {
-    showToast(e.message, kind: ToastKind.error);
-  }
-  return false;
-}
-
 /// Onboarding: signs in with a Google account. The first time it makes a
 /// Sinai account; after that it brings the same one back, chats included.
 Future<void> signInWithGoogle(BuildContext context) async {
@@ -45,8 +24,8 @@ Future<void> signInWithGoogle(BuildContext context) async {
   }
 }
 
-/// The ways to keep the account, on the user's own profile: each shows
-/// what is added, or a button to add it.
+/// How the user signs in, on their own profile: the Google account (and,
+/// once phone sign-in is on, a button to add a number).
 class AccountSection extends StatefulWidget {
   const AccountSection({super.key});
 
@@ -60,13 +39,6 @@ class AccountSection extends StatefulWidget {
 
 class _AccountSectionState extends State<AccountSection> {
   final _auth = AuthRepository();
-  bool _busy = false;
-
-  Future<void> _google() async {
-    setState(() => _busy = true);
-    await continueWithGoogle(context);
-    if (mounted) setState(() => _busy = false);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +46,6 @@ class _AccountSectionState extends State<AccountSection> {
     final text = context.textTheme;
     final google = _auth.googleEmail;
     final phone = _auth.phoneNumber;
-    final saved = google != null || phone != null;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -87,27 +58,24 @@ class _AccountSectionState extends State<AccountSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            saved
-                ? 'Your account is saved. Sign in with any of these after '
-                    'a reinstall or on a new phone. Only you can see them.'
-                : 'Add a way to sign in to keep your name and chats if you '
-                    'reinstall the app or change phone. Only you can see it.',
+            'You sign in with this. Use it after a reinstall or on a new '
+            'phone to get your name and chats back. Only you can see it.',
             style: text.bodySmall.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 12),
           if (FeatureFlags.googleSignIn)
             _Option(
               mark: const GoogleMark(),
-              label: google ?? 'Add Google',
-              added: google != null,
-              onTap: _busy || google != null ? null : _google,
+              label: google ?? 'Google',
+              added: true,
+              onTap: null,
             ),
           if (FeatureFlags.phoneSignIn)
             _Option(
               mark: Icon(AppIcons.phone, size: 20, color: colors.secondary),
               label: phone ?? 'Add phone number',
               added: phone != null,
-              onTap: _busy || phone != null
+              onTap: phone != null
                   ? null
                   : () async {
                       await context.router.push(PhoneRoute());

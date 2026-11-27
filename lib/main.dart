@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:sinai/api/live_socket.dart';
@@ -31,12 +32,19 @@ void main() async {
   // Doesn't hold up the start; the banner or block appears when it knows.
   unawaited(AppUpdate.instance.start());
 
-  // No account is made without signing in: a new user signs in with Google
-  // on onboarding. Older users may still be anonymous and keep working.
+  // There are no anonymous accounts: everyone signs in with Google on
+  // onboarding. One left from older versions is signed out here.
+  if (FirebaseAuth.instance.currentUser?.isAnonymous ?? false) {
+    if (await ApiClient.instance.restore()) {
+      // Its chats must stop pushing to this phone.
+      await NotificationService.instance.removeTokenFromCurrentUser();
+      await AuthApi.instance.signOut();
+    }
+    await FirebaseAuth.instance.signOut();
+  }
   final hasAccount = FirebaseAuth.instance.currentUser != null;
 
-  // The backend session comes from the Firebase account, so people keep
-  // their chats when the app moves over.
+  // The backend session comes from the Firebase account.
   // Offline at start: keep trying in the background; the socket connects
   // as soon as there is a session.
   if (hasAccount && !await _signIn()) {

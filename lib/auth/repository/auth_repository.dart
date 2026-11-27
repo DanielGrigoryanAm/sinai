@@ -51,9 +51,8 @@ class SignInCancelled implements Exception {
   const SignInCancelled();
 }
 
-/// Ways to keep an account: the app signs in anonymously, and a phone
-/// number or a Google account can be added later to restore the
-/// account after a reinstall or on a new phone.
+/// Ways to sign in: Google (on onboarding), and a phone number that can
+/// be added to the account (off for now).
 ///
 /// The number lives only in Firebase Authentication. It is never written to
 /// Firestore, so other users have no way to see it.
