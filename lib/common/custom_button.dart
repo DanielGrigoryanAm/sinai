@@ -13,6 +13,7 @@ class CustomButton extends StatelessWidget {
     this.isLoading = false,
     this.leadingIcon,
     this.trailingIcon,
+    this.color,
   }) : _type = type;
 
   factory CustomButton.primary({
@@ -34,6 +35,8 @@ class CustomButton extends StatelessWidget {
     );
   }
 
+  /// [color] replaces the accent of the line, text and icons, e.g. red
+  /// for signing out.
   factory CustomButton.outline({
     Key? key,
     required String text,
@@ -41,6 +44,7 @@ class CustomButton extends StatelessWidget {
     bool isLoading = false,
     IconData? leadingIcon,
     IconData? trailingIcon,
+    Color? color,
   }) {
     return CustomButton._(
       key: key,
@@ -50,6 +54,7 @@ class CustomButton extends StatelessWidget {
       isLoading: isLoading,
       leadingIcon: leadingIcon,
       trailingIcon: trailingIcon,
+      color: color,
     );
   }
 
@@ -58,6 +63,7 @@ class CustomButton extends StatelessWidget {
   final bool isLoading;
   final IconData? leadingIcon;
   final IconData? trailingIcon;
+  final Color? color;
   final _CustomButtonType _type;
 
   @override
@@ -65,9 +71,8 @@ class CustomButton extends StatelessWidget {
     final isPrimary = _type == _CustomButtonType.primary;
     final backgroundColor =
         isPrimary ? context.colorTheme.secondary : Colors.transparent;
-    final textColor = isPrimary
-        ? context.colorTheme.backgroundPrimary
-        : context.colorTheme.secondary;
+    final accent = color ?? context.colorTheme.secondary;
+    final textColor = isPrimary ? context.colorTheme.backgroundPrimary : accent;
 
     return GestureDetector(
       onTap: onTap,
@@ -80,7 +85,7 @@ class CustomButton extends StatelessWidget {
           border: isPrimary
               ? null
               : Border.all(
-                  color: context.colorTheme.secondary,
+                  color: accent,
                   width: 2,
                 ),
         ),

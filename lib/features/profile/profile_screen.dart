@@ -279,6 +279,7 @@ class _ProfileViewState extends State<_ProfileView> {
                   CustomButton.outline(
                     text: 'Sign out',
                     leadingIcon: AppIcons.logout,
+                    color: const Color(0xFFDC2626),
                     isLoading: _signingOut,
                     onTap: _signingOut ? null : _signOut,
                   ),
