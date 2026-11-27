@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — Sign out in the profile (with a confirm): detaches the push token, stops the socket, ends the backend and Firebase sessions, clears drafts, back to onboarding (`account_link.dart` `signOut`, `profile_screen.dart`, `draft_store.dart`, `onboarding_prefs.dart`). Not checked on a device.
 - 2026-11-27 — backend: deployed `feature/google-sign-in` (Google-only sign-in, personal codes, direct chats). Migrations 0005–0006 applied in production, all 22 users got distinct codes; `/v1/auth/guest` answers 404. Backup before it: `deploy/backups/sinai-before-direct-chats.dump` on the server. The app side waits for Daniel's APK test.
 - 2026-11-27 — Local Docker (Colima) fixed by restarting it: its disk had gone read-only after the Mac ran out of space. Migrations 0005–0006 applied locally; smoke passes twice in a row (66 checks) after fixing it (`cmd/smoke`: new key id per run, the direct chat deleted at the end, Alice's socket checked). Colima's ext4 still asks for an fsck.
 - 2026-11-27 — backend: direct chats — migration `0006_direct_chats.sql` (`chats.direct_key`, one chat per pair), `POST /v1/chats/direct {code}`, `GET /v1/users/{code}`; chats carry `direct`, the list a `peer`; direct chats can't be joined by code (`internal/chats`, `internal/users`, smoke). Not deployed.

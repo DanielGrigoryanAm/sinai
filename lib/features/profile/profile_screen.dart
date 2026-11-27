@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/auth/account_link.dart';
+import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/account/account_options.dart';
 import 'package:sinai/common/toast.dart';
@@ -40,6 +42,22 @@ class _ProfileViewState extends State<_ProfileView> {
   late final TextEditingController _nameController =
       TextEditingController(text: _savedName);
   bool _saving = false;
+
+  bool _signingOut = false;
+
+  Future<void> _signOut() async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Sign out?',
+      message: 'Your chats stay with your account. Sign in with the same '
+          'Google account to get them back, or with another one.',
+      confirmLabel: 'Sign out',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _signingOut = true);
+    await signOut(context);
+  }
 
   /// The user's own code, once the backend has sent it.
   String? _code;
@@ -190,6 +208,13 @@ class _ProfileViewState extends State<_ProfileView> {
                     const SizedBox(height: 8),
                     const AccountSection(),
                   ],
+                  const SizedBox(height: 24),
+                  CustomButton.outline(
+                    text: 'Sign out',
+                    leadingIcon: AppIcons.logout,
+                    isLoading: _signingOut,
+                    onTap: _signingOut ? null : _signOut,
+                  ),
                 ],
               ),
             ),

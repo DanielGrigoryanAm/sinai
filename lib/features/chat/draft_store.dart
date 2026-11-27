@@ -42,6 +42,13 @@ class DraftStore {
     _saveTimer = Timer(const Duration(milliseconds: 600), _save);
   }
 
+  /// Forgets every draft, e.g. on sign-out: they belong to that account.
+  Future<void> clear() async {
+    _saveTimer?.cancel();
+    drafts.value = const {};
+    await _save();
+  }
+
   Future<void> _save() async {
     try {
       final prefs = await SharedPreferences.getInstance();

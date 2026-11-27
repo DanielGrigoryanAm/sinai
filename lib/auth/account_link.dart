@@ -2,9 +2,11 @@ import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/api/live_socket.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
+import 'package:sinai/features/chat/draft_store.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
@@ -89,4 +91,25 @@ Future<void> signInWith(
 
   if (!context.mounted) return;
   context.router.replaceAll([const ChatsRoute()]);
+}
+
+/// Signs out of this account on this phone: its notifications stop, the
+/// backend session ends, its drafts go, and onboarding asks to sign in
+/// again (with the same Google account or another).
+Future<void> signOut(BuildContext context) async {
+  try {
+    // While still signed in, so the backend can forget this phone.
+    await NotificationService.instance.removeTokenFromCurrentUser();
+    await LiveSocket.instance.stop();
+    await AuthApi.instance.signOut();
+    await FirebaseAuth.instance.signOut();
+  } catch (e) {
+    // Signed out here either way; the next sign-in replaces the rest.
+    debugPrint('Signing out: $e');
+  }
+  await OnboardingPrefs.clear();
+  await DraftStore.instance.clear();
+
+  if (!context.mounted) return;
+  context.router.replaceAll([const OnboardingRoute()]);
 }
