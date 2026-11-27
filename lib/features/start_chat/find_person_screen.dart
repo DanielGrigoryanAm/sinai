@@ -121,7 +121,7 @@ class _FindPersonScreenState extends State<FindPersonScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: const CustomAppBar(
-          title: 'Message someone',
+          title: 'New message',
           showBackButton: true,
         ),
         backgroundColor: colors.backgroundPrimary,

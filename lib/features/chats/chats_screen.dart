@@ -198,12 +198,12 @@ class _ChatsScreenState extends State<ChatsScreen>
                 onToggle: _toggleMenu,
                 actions: [
                   NewChatAction(
-                    label: 'Create or join a chat',
+                    label: 'New chat',
                     icon: AppIcons.chat,
                     onTap: () => _openFromMenu(const StartChatRoute()),
                   ),
                   NewChatAction(
-                    label: 'Message someone',
+                    label: 'New message',
                     icon: AppIcons.user,
                     onTap: () => _openFromMenu(const FindPersonRoute()),
                   ),
@@ -230,7 +230,7 @@ class _ChatsScreenState extends State<ChatsScreen>
     if (state.chats.isEmpty) {
       return _EmptyState(
         title: 'No chats yet',
-        subtitle: 'Tap + to message someone or join a chat',
+        subtitle: 'Tap + to start a new chat or message',
         actionLabel: 'Refresh',
         onAction: refresh,
       );

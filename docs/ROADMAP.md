@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — + menu buttons renamed "New chat" and "New message" (also the find screen's title and the empty-list hint) (`chats_screen.dart`, `find_person_screen.dart`). Not checked on a device.
 - 2026-11-27 — Profile photo: tap the avatar in the profile to pick one from the gallery (or remove it); shown in the find-by-code card, the chats list and the header of direct chats. Backend: `POST /v1/me/uploads`, `PATCH /v1/me {photoUrl}`, files under `users/<id>/` readable by anyone signed in, photo URLs in members, peer, profile and sign-in (`internal/storage`, `internal/users`, `internal/chats`, `internal/auth`; app `profile_screen.dart`, `auth_api.dart`, `chat_watch.dart`). Smoke passes (74); deployed; not checked on a device.
 - 2026-11-27 — Sign out in the profile (with a confirm): detaches the push token, stops the socket, ends the backend and Firebase sessions, clears drafts, back to onboarding (`account_link.dart` `signOut`, `profile_screen.dart`, `draft_store.dart`, `onboarding_prefs.dart`). Not checked on a device.
 - 2026-11-27 — backend: deployed `feature/google-sign-in` (Google-only sign-in, personal codes, direct chats). Migrations 0005–0006 applied in production, all 22 users got distinct codes; `/v1/auth/guest` answers 404. Backup before it: `deploy/backups/sinai-before-direct-chats.dump` on the server. The app side waits for Daniel's APK test.
