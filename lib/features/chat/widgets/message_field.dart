@@ -240,13 +240,20 @@ class _MessageFieldState extends State<MessageField> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
+            // Accent icons, like the profile's photo menu.
             ListTile(
-              leading: const Icon(AppIcons.addImage),
+              leading: Icon(
+                AppIcons.addImage,
+                color: context.colorTheme.secondary,
+              ),
               title: const Text('Choose from gallery'),
               onTap: () => Navigator.of(context).pop(ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(AppIcons.camera),
+              leading: Icon(
+                AppIcons.camera,
+                color: context.colorTheme.secondary,
+              ),
               title: const Text('Take a photo'),
               onTap: () => Navigator.of(context).pop(ImageSource.camera),
             ),

@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-28 — Chat's photo menu (Choose from gallery / Take a photo): icons in the accent colour, like the profile's photo menu (`message_field.dart`). Not checked on a device.
 - 2026-11-28 — Fixed a deleted chat flashing back: a list asked for before the backend deleted it could arrive after; the bloc now keeps deleted chats hidden until a list asked for after the deletion arrives, and Messages no longer reloads right on delete (`chat_bloc_backend.dart` `_gone`, `chats_screen.dart`). Not checked on a device.
 - 2026-11-28 — Colors split: profile → Appearance → App colors (accent, background, cards; everywhere) and chat info → Chat colors (my messages, text; that chat only, saved per chat on the device in `theme/chat_colors_store.dart`, applied by `ChatColorsScope` around the chat screen). `ColorSlot.isChat`, shared `_ColorsScreen` in `app_colors_screen.dart`; `profile_screen.dart`, `chat_info_sheet.dart`, `chat_screen.dart`, `main.dart`. Not checked on a device.
 - 2026-11-28 — Direct chats' info sheet no longer lists members; the other person's photo at its top opens their profile (`chat_info_sheet.dart`). Not checked on a device.
