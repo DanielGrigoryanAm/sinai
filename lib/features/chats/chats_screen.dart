@@ -123,7 +123,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                             clipBehavior: Clip.antiAlias,
                             child: IconButton(
                               tooltip: 'Profile',
-                              icon: const Icon(AppIcons.user),
+                              icon: const ProfileIcon(),
                               onPressed: () =>
                                   context.router.push(const ProfileRoute()),
                             ),
@@ -148,14 +148,14 @@ class _ChatsScreenState extends State<ChatsScreen> {
                 ),
               ),
               floatingActionButton: SizedBox.square(
-                dimension: 64,
+                dimension: 56,
                 child: FloatingActionButton(
                   onPressed: () => context.router.push(const StartChatRoute()),
                   backgroundColor: colors.secondary,
                   foregroundColor: Colors.white,
                   elevation: 4,
                   shape: const CircleBorder(),
-                  child: const Icon(AppIcons.add, size: 32),
+                  child: const PlusIcon(size: 26, strokeWidth: 2.2),
                 ),
               ),
             ),

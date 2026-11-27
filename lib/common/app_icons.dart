@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 /// Flaticon UIcons (thin rounded, plus a few regular rounded where the thin
@@ -73,4 +75,76 @@ class PlayPauseIcon extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A plain plus, drawn: the icon fonts only have one inside a circle.
+class PlusIcon extends StatelessWidget {
+  const PlusIcon({super.key, this.size = 24, this.color, this.strokeWidth});
+
+  final double size;
+  final Color? color;
+  final double? strokeWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = this.color ?? IconTheme.of(context).color!;
+    return CustomPaint(
+      size: Size.square(size),
+      painter: _LinePainter(color, strokeWidth ?? size / 12, (canvas, s, p) {
+        canvas.drawLine(Offset(s / 2, s * .15), Offset(s / 2, s * .85), p);
+        canvas.drawLine(Offset(s * .15, s / 2), Offset(s * .85, s / 2), p);
+      }),
+    );
+  }
+}
+
+/// A person (head and shoulders) without a circle around it, drawn.
+class ProfileIcon extends StatelessWidget {
+  const ProfileIcon({super.key, this.size = 24, this.color});
+
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = this.color ?? IconTheme.of(context).color!;
+    return CustomPaint(
+      size: Size.square(size),
+      painter: _LinePainter(color, size / 15, (canvas, s, p) {
+        canvas.drawCircle(Offset(s / 2, s * .33), s * .18, p);
+        canvas.drawArc(
+          Rect.fromLTRB(s * .17, s * .62, s * .83, s * 1.18),
+          math.pi,
+          math.pi,
+          false,
+          p,
+        );
+      }),
+    );
+  }
+}
+
+class _LinePainter extends CustomPainter {
+  _LinePainter(this.color, this.strokeWidth, this.draw);
+
+  final Color color;
+  final double strokeWidth;
+  final void Function(Canvas canvas, double size, Paint paint) draw;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    draw(
+      canvas,
+      size.width,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_LinePainter old) =>
+      old.color != color || old.strokeWidth != strokeWidth;
 }
