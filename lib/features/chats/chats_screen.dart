@@ -50,6 +50,11 @@ class _ChatsScreenState extends State<ChatsScreen>
     context.router.push(route);
   }
 
+  /// The list's bloc; reloaded whenever this screen is on top again.
+  final ChatBloc _bloc = ChatBloc()..add(const GetChatsEvent());
+  StackRouter? _router;
+  bool _onTop = true;
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +64,27 @@ class _ChatsScreenState extends State<ChatsScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = context.router;
+    if (router != _router) {
+      _router?.removeListener(_onRoutesChanged);
+      _router = router..addListener(_onRoutesChanged);
+    }
+  }
+
+  /// Back on this screen from a chat, a new chat or a new message: the
+  /// list may have a chat it doesn't show yet, so it reloads quietly.
+  void _onRoutesChanged() {
+    final onTop = _router?.current.name == ChatsRoute.name;
+    if (onTop && !_onTop) _bloc.add(const GetChatsEvent());
+    _onTop = onTop;
+  }
+
+  @override
   void dispose() {
+    _router?.removeListener(_onRoutesChanged);
+    _bloc.close();
     _menu.dispose();
     _searchController.dispose();
     super.dispose();
@@ -96,8 +121,8 @@ class _ChatsScreenState extends State<ChatsScreen>
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
 
-    return BlocProvider(
-      create: (_) => ChatBloc()..add(const GetChatsEvent()),
+    return BlocProvider.value(
+      value: _bloc,
       child: BlocListener<ChatBloc, ChatState>(
         listener: (context, state) {
           if (state is ChatError) {
