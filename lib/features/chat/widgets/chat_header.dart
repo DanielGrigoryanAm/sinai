@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/features/chat/widgets/chat_games.dart';
+import 'package:sinai/features/chat/widgets/edge_tab.dart';
 import 'package:sinai/features/chat/widgets/notch_extras.dart';
 import 'package:sinai/features/chat/widgets/notch_menu.dart';
 import 'package:sinai/features/chat/widgets/watch_together.dart';
@@ -124,7 +125,7 @@ class _ChatHeaderState extends State<ChatHeader> {
           alignment: Alignment.topCenter,
           maxHeight: double.infinity,
           child: _Notch(
-            narrowWidth: width - 2 * (_EdgeTab._width + 6),
+            narrowWidth: width - 2 * (EdgeTab.width + 6),
             wide: ChatGames.shown(_chat).isWide,
             top: 0,
             onTap: onInfo,
@@ -198,14 +199,14 @@ class _ChatHeaderState extends State<ChatHeader> {
           // 6 + 38.5 (title and status) + 10 + 11 (grabber) tall below the status bar, a tab
           // is curve + body tall.
           padding: EdgeInsets.only(
-            top: (top + 54.5 + 11 - _EdgeTab._tabHeight - _EdgeTab._fillet)
+            top: (top + 54.5 + 11 - EdgeTab.tabHeight - EdgeTab.fillet)
                 .clamp(0, double.infinity),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EdgeTab(
-                side: _Side.left,
+              EdgeTab(
+                side: EdgeSide.left,
                 icon: AppIcons.arrowLeft,
                 tooltip: 'Back',
                 onTap: onBack,
@@ -214,9 +215,9 @@ class _ChatHeaderState extends State<ChatHeader> {
               // The left tab's curve is above it and this one's below, so
               // this one moves down by the curve to line up with it.
               Padding(
-                padding: const EdgeInsets.only(top: _EdgeTab._fillet),
-                child: _EdgeTab(
-                  side: _Side.right,
+                padding: const EdgeInsets.only(top: EdgeTab.fillet),
+                child: EdgeTab(
+                  side: EdgeSide.right,
                   icon: AppIcons.search,
                   tooltip: 'Search',
                   onTap: widget.onSearch,
@@ -229,8 +230,6 @@ class _ChatHeaderState extends State<ChatHeader> {
     );
   }
 }
-
-enum _Side { left, right }
 
 /// White container hanging from the top edge, flowing into it with
 /// concave curves on both sides, like a laptop's camera notch.
@@ -648,7 +647,7 @@ class _NotchState extends State<_Notch> with TickerProviderStateMixin {
         onVerticalDragEnd: _release,
         onVerticalDragCancel: _release,
         child: CustomPaint(
-          painter: _ShadowPainter(shape),
+          painter: ClipShadowPainter(shape),
           child: ClipPath(
             clipper: shape,
             child: Material(
@@ -804,126 +803,6 @@ class _NotchShape extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(_NotchShape oldClipper) => oldClipper.top != top;
-}
-
-/// A button shaped as a tab attached to the screen edge. A concave curve
-/// flows it into the edge: above the left tab, below the right one.
-class _EdgeTab extends StatelessWidget {
-  const _EdgeTab({
-    required this.side,
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  static const _width = 53.0;
-  static const _tabHeight = 45.0;
-  static const _fillet = 16.0;
-
-  final _Side side;
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final shape = _EdgeTabShape(side);
-    final isLeft = side == _Side.left;
-
-    return Tooltip(
-      message: tooltip,
-      child: SizedBox(
-        width: _width,
-        height: _tabHeight + _fillet,
-        child: CustomPaint(
-          painter: _ShadowPainter(shape),
-          child: ClipPath(
-            clipper: shape,
-            child: Material(
-              color: Colors.white,
-              child: InkWell(
-                onTap: onTap,
-                child: Padding(
-                  // The icon sits in the tab, not in the curve.
-                  padding: EdgeInsets.only(
-                    top: isLeft ? _fillet : 0,
-                    bottom: isLeft ? 0 : _fillet,
-                    left: isLeft ? 0 : 6,
-                    right: isLeft ? 6 : 0,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      icon,
-                      size: 20,
-                      color: context.colorTheme.textPrimary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EdgeTabShape extends CustomClipper<Path> {
-  const _EdgeTabShape(this.side);
-
-  final _Side side;
-
-  static const _radius = 18.0;
-
-  @override
-  Path getClip(Size size) {
-    const f = _EdgeTab._fillet;
-    const r = _radius;
-    final w = size.width;
-    final h = size.height;
-
-    // Drawn for the left side, with the curve on top; the right tab is
-    // the same shape turned half a turn.
-    final path = Path()
-      ..moveTo(0, 0)
-      ..quadraticBezierTo(0, f, f, f)
-      ..lineTo(w - r, f)
-      ..quadraticBezierTo(w, f, w, f + r)
-      ..lineTo(w, h - r)
-      ..quadraticBezierTo(w, h, w - r, h)
-      ..lineTo(0, h)
-      ..close();
-
-    if (side == _Side.left) return path;
-    return path.transform(
-      (Matrix4.identity()
-            ..translateByDouble(w, h, 0, 1)
-            ..rotateZ(3.141592653589793))
-          .storage,
-    );
-  }
-
-  @override
-  bool shouldReclip(_EdgeTabShape oldClipper) => oldClipper.side != side;
-}
-
-class _ShadowPainter extends CustomPainter {
-  const _ShadowPainter(this.shape);
-
-  final CustomClipper<Path> shape;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawShadow(
-      shape.getClip(size),
-      const Color(0x55000000),
-      5,
-      false,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ShadowPainter oldDelegate) => oldDelegate.shape != shape;
 }
 
 /// "Pull down for full screen" with a bar that fills as the notch is

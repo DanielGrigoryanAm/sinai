@@ -4,6 +4,7 @@ import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'dart:async';
 import 'package:sinai/api/chats_api.dart';
+import 'package:sinai/features/chat/widgets/edge_tab.dart';
 
 /// Searches a chat's messages by text. Pops with the id of the tapped
 /// message, so the chat can scroll to it.
@@ -77,71 +78,139 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
 
     return Scaffold(
       backgroundColor: colors.backgroundPrimary,
-      appBar: AppBar(
-        backgroundColor: colors.backgroundPrimary,
-        surfaceTintColor: Colors.transparent,
-        titleSpacing: 0,
-        title: TextField(
-          controller: _query,
-          autofocus: true,
-          cursorColor: colors.secondary,
-          textInputAction: TextInputAction.search,
-          style: context.textTheme.bodyLarge,
-          onChanged: (_) {
-            setState(() {});
-            _onQueryChanged();
-          },
-          decoration: InputDecoration(
-            hintText: 'Search messages',
-            hintStyle: context.textTheme.bodyLarge
-                .copyWith(color: colors.textSecondary),
-            border: InputBorder.none,
-          ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Row(
+                // The field lines up with the tab's body, under its curve.
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // The same back tab as in the chat.
+                  EdgeTab(
+                    side: EdgeSide.left,
+                    icon: AppIcons.arrowLeft,
+                    tooltip: 'Back',
+                    onTap: () => Navigator.of(context).maybePop(),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(context)),
+                  const SizedBox(width: 16),
+                ],
+              ),
+            ),
+            Expanded(child: _results(context)),
+          ],
         ),
-        actions: [
+      ),
+    );
+  }
+
+  Widget _field(BuildContext context) {
+    final colors = context.colorTheme;
+    return Container(
+      height: EdgeTab.tabHeight,
+      decoration: BoxDecoration(
+        color: colors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 14),
+          Icon(AppIcons.search, size: 18, color: colors.textSecondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _query,
+              autofocus: true,
+              cursorColor: colors.secondary,
+              textInputAction: TextInputAction.search,
+              style: context.textTheme.bodyLarge,
+              onChanged: (_) {
+                setState(() {});
+                _onQueryChanged();
+              },
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Search messages',
+                hintStyle: context.textTheme.bodyLarge
+                    .copyWith(color: colors.textSecondary),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
           if (_query.text.isNotEmpty)
             IconButton(
               tooltip: 'Clear',
-              icon: const Icon(AppIcons.close),
+              icon: Icon(AppIcons.close, size: 18, color: colors.textSecondary),
               onPressed: () => setState(_query.clear),
-            ),
+            )
+          else
+            const SizedBox(width: 14),
         ],
       ),
-      body: FutureBuilder<List<_SearchItem>>(
-        future: _messages,
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const _Hint('Could not load messages');
-          }
-          if (!snapshot.hasData) {
-            return Center(
-              child: CircularProgressIndicator(color: colors.secondary),
-            );
-          }
+    );
+  }
 
-          final query = _query.text.trim().toLowerCase();
-          if (query.length < 2) {
-            return const _Hint('Type at least 2 letters');
-          }
-
-          final results = snapshot.data!
-              .where((m) => m.text.toLowerCase().contains(query))
-              .toList();
-          if (results.isEmpty) return const _Hint('Nothing found');
-
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: results.length,
-            separatorBuilder: (_, __) =>
-                Divider(height: 1, indent: 20, color: colors.border),
-            itemBuilder: (context, index) => _ResultTile(
-              item: results[index],
-              query: query,
-              onTap: () => Navigator.of(context).pop(results[index].id),
-            ),
+  Widget _results(BuildContext context) {
+    final colors = context.colorTheme;
+    return FutureBuilder<List<_SearchItem>>(
+      future: _messages,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const _Hint(
+            title: 'Could not search',
+            subtitle: 'Check the internet and try again',
           );
-        },
-      ),
+        }
+        if (!snapshot.hasData) {
+          return Center(
+            child: CircularProgressIndicator(color: colors.secondary),
+          );
+        }
+
+        final query = _query.text.trim().toLowerCase();
+        // Until there is something to look for.
+        if (query.length < 2) {
+          return const _Hint(
+            title: 'Search this chat',
+            subtitle: 'Find any message by a word in it',
+            icon: true,
+          );
+        }
+
+        final results = snapshot.data!
+            .where((m) => m.text.toLowerCase().contains(query))
+            .toList();
+        if (results.isEmpty) {
+          return const _Hint(
+            title: 'Nothing found',
+            subtitle: 'Try another word',
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          itemCount: results.length,
+          separatorBuilder: (_, __) =>
+              Divider(height: 1, indent: 20, color: colors.border),
+          itemBuilder: (context, index) => _ResultTile(
+            item: results[index],
+            query: query,
+            onTap: () => Navigator.of(context).pop(results[index].id),
+          ),
+        );
+      },
     );
   }
 }
@@ -244,18 +313,57 @@ class _ResultTile extends StatelessWidget {
   }
 }
 
+/// A calm empty state in the middle of the screen: a title and a softer
+/// line under it, with a search mark when asked.
 class _Hint extends StatelessWidget {
-  const _Hint(this.text);
+  const _Hint({required this.title, required this.subtitle, this.icon = false});
 
-  final String text;
+  final String title;
+  final String subtitle;
+  final bool icon;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    final text = context.textTheme;
     return Center(
-      child: Text(
-        text,
-        style: context.textTheme.bodyLarge
-            .copyWith(color: context.colorTheme.textSecondary),
+      child: Padding(
+        // A little above the middle, where the keyboard leaves room.
+        padding: const EdgeInsets.fromLTRB(32, 0, 32, 120),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon) ...[
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: colors.backgroundSecondary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(AppIcons.search, size: 26, color: colors.secondary),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: text.titleSmall.copyWith(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: text.bodyLarge.copyWith(
+                fontSize: 15,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

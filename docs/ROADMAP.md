@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — Message search screen: the chat's back tab (moved to `edge_tab.dart` as `EdgeTab`, shared with `chat_header.dart`) next to a rounded search field; "Type at least 2 letters" replaced by an empty state ("Search this chat" with a search mark), friendlier "Nothing found" / error texts (`message_search_screen.dart`). Not checked on a device.
 - 2026-11-27 — Messages reloads its list quietly whenever it is on top again (router listener), so a chat just created, joined or opened by code shows without pulling to refresh (`chats_screen.dart`). Not checked on a device.
 - 2026-11-27 — Sign out button drawn red (line, text, icon): `CustomButton.outline(color:)` (`custom_button.dart`, `profile_screen.dart`). Not checked on a device.
 - 2026-11-27 — + menu buttons renamed "New chat" and "New message" (also the find screen's title and the empty-list hint) (`chats_screen.dart`, `find_person_screen.dart`). Not checked on a device.
