@@ -24,6 +24,11 @@ class QuickReactionsStore {
     final uid = currentUserId();
     if (uid == null || uid == _uid) return;
     _uid = uid;
+    // The saved profile's set at once; the backend's below.
+    final cached = _parse(AuthApi.instance.current.value?.quickReactions);
+    if (cached != null && !listEquals(cached, reactions.value)) {
+      reactions.value = cached;
+    }
     try {
       final saved = _parse((await AuthApi.instance.me()).quickReactions);
       if (saved != null && !listEquals(saved, reactions.value)) {

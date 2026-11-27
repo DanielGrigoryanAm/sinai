@@ -46,6 +46,7 @@ class RoundField extends StatefulWidget {
     super.key,
     required this.controller,
     required this.hintText,
+    this.focusNode,
     this.icon = AppIcons.search,
     this.autofocus = false,
     this.onChanged,
@@ -57,6 +58,7 @@ class RoundField extends StatefulWidget {
 
   final TextEditingController controller;
   final String hintText;
+  final FocusNode? focusNode;
   final IconData icon;
   final bool autofocus;
   final ValueChanged<String>? onChanged;
@@ -126,6 +128,7 @@ class _RoundFieldState extends State<RoundField> {
           Expanded(
             child: TextField(
               controller: widget.controller,
+              focusNode: widget.focusNode,
               autofocus: widget.autofocus,
               cursorColor: colors.secondary,
               textInputAction: widget.textInputAction,

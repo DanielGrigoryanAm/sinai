@@ -1,10 +1,10 @@
-import 'dart:typed_data';
-
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/live_socket.dart';
+import 'package:sinai/api/local_cache.dart';
 
 /// The signed-in user as the backend knows them.
 class ApiUser {
@@ -24,6 +24,15 @@ class ApiUser {
         quickReactions:
             (json['quickReactions'] as List?)?.whereType<String>().toList(),
       );
+
+  /// For [LocalCache]; [ApiUser.fromJson] reads it back.
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'code': code,
+        if (photoUrl != null) 'photoUrl': photoUrl,
+        if (quickReactions != null) 'quickReactions': quickReactions,
+      };
 
   final String id;
   final String name;
@@ -48,10 +57,43 @@ class AuthApi {
 
   final ApiClient _api;
 
+  static const _cacheName = 'me';
+
+  /// The user as last seen from the backend, kept on the device so the
+  /// profile (photo, code, name) shows at once; null until known.
+  final current = ValueNotifier<ApiUser?>(null);
+
+  /// The user's profile photo; null when there is none or not known yet.
+  String? get photoUrl => current.value?.photoUrl;
+
+  ApiUser _remember(ApiUser user) {
+    current.value = user;
+    LocalCache.instance.write(_cacheName, user.toJson()).ignore();
+    return user;
+  }
+
+  /// Shows the saved profile until the backend answers.
+  Future<void> _loadCached() async {
+    if (current.value != null) return;
+    try {
+      final json = await LocalCache.instance.read(_cacheName);
+      if (json is! Map<String, dynamic>) return;
+      final user = ApiUser.fromJson(json);
+      if (user.id == _api.userId && current.value == null) {
+        current.value = user;
+      }
+    } catch (e) {
+      debugPrint('Cached profile unreadable: $e');
+    }
+  }
+
   /// Makes sure there is a backend session: the saved one, or a new one
   /// from the current Firebase account.
   Future<void> ensureSignedIn() async {
-    if (_api.isSignedIn || await _api.restore()) return;
+    if (_api.isSignedIn || await _api.restore()) {
+      await _loadCached();
+      return;
+    }
     await signInWithFirebase();
   }
 
@@ -69,7 +111,7 @@ class AuthApi {
       'name': String.fromCharCodes(name.runes.take(40)).trim(),
     });
     final user = await _api.startSession(body as Map<String, dynamic>);
-    return ApiUser.fromJson(user);
+    return _remember(ApiUser.fromJson(user));
   }
 
   /// After signing in to another Firebase account (Google, phone), moves
@@ -82,14 +124,14 @@ class AuthApi {
     return user;
   }
 
-  Future<ApiUser> me() async =>
-      ApiUser.fromJson(await _api.get('/v1/me') as Map<String, dynamic>);
+  Future<ApiUser> me() async => _remember(
+      ApiUser.fromJson(await _api.get('/v1/me') as Map<String, dynamic>));
 
   /// Renames the user; kept in step with the Firebase display name while
   /// both are in use.
-  Future<ApiUser> rename(String name) async => ApiUser.fromJson(
+  Future<ApiUser> rename(String name) async => _remember(ApiUser.fromJson(
         await _api.patch('/v1/me', {'name': name}) as Map<String, dynamic>,
-      );
+      ));
 
   /// Uploads [bytes] and makes them the user's profile photo.
   Future<ApiUser> setPhoto(Uint8List bytes, String contentType) async {
@@ -104,17 +146,31 @@ class AuthApi {
     if (response.statusCode >= 300) {
       throw ApiException(response.statusCode, 'upload', 'Upload failed');
     }
-    return ApiUser.fromJson(await _api.patch('/v1/me', {
+    return _remember(ApiUser.fromJson(await _api.patch('/v1/me', {
       'photoUrl': upload['key'],
-    }) as Map<String, dynamic>);
+    }) as Map<String, dynamic>));
   }
 
-  Future<ApiUser> removePhoto() async => ApiUser.fromJson(
+  Future<ApiUser> removePhoto() async => _remember(ApiUser.fromJson(
         await _api.patch('/v1/me', {'photoUrl': ''}) as Map<String, dynamic>,
-      );
+      ));
 
-  Future<void> setQuickReactions(List<String> list) =>
-      _api.patch('/v1/me', {'quickReactions': list});
+  Future<void> setQuickReactions(List<String> list) async {
+    await _api.patch('/v1/me', {'quickReactions': list});
+    final me = current.value;
+    if (me != null) {
+      _remember(ApiUser(
+        id: me.id,
+        name: me.name,
+        code: me.code,
+        photoUrl: me.photoUrl,
+        quickReactions: list,
+      ));
+    }
+  }
 
-  Future<void> signOut() => _api.signOut();
+  Future<void> signOut() {
+    current.value = null;
+    return _api.signOut();
+  }
 }

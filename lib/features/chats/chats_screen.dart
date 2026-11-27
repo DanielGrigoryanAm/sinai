@@ -1,4 +1,7 @@
 import 'package:auto_route/auto_route.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/api/media_url.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/common/toast.dart';
@@ -29,6 +32,11 @@ class ChatsScreen extends StatefulWidget {
 class _ChatsScreenState extends State<ChatsScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  late final FocusNode _searchFocus = FocusNode()..addListener(_onSearchFocus);
+
+  /// When this screen was last back on top; focus the search gets just
+  /// after that comes from the navigator, not from a tap.
+  DateTime? _backAt;
   DateTime? _lastBackPressedAt;
   String _query = '';
 
@@ -62,6 +70,8 @@ class _ChatsScreenState extends State<ChatsScreen>
     // Asked here rather than at launch, so the permission prompt appears
     // once the user is past onboarding and sees what it is for.
     NotificationService.instance.init();
+    // For the profile button's photo.
+    AuthApi.instance.me().ignore();
   }
 
   @override
@@ -78,13 +88,35 @@ class _ChatsScreenState extends State<ChatsScreen>
   /// list may have a chat it doesn't show yet, so it reloads quietly.
   void _onRoutesChanged() {
     final onTop = _router?.current.name == ChatsRoute.name;
-    if (onTop && !_onTop) _bloc.add(const GetChatsEvent());
+    if (onTop != _onTop) _dropSearchFocus();
+    if (onTop && !_onTop) {
+      _backAt = DateTime.now();
+      _bloc.add(const GetChatsEvent());
+      // The navigator gives focus back to this screen after the pop; the
+      // search must not take it (and open the keyboard) by itself.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _dropSearchFocus());
+    }
     _onTop = onTop;
+  }
+
+  void _dropSearchFocus() {
+    if (mounted) _searchFocus.unfocus();
+  }
+
+  void _onSearchFocus() {
+    if (!_searchFocus.hasFocus) return;
+    final back = _backAt;
+    final restored = !_onTop ||
+        (back != null &&
+            DateTime.now().difference(back) <
+                const Duration(milliseconds: 700));
+    if (restored) _searchFocus.unfocus();
   }
 
   @override
   void dispose() {
     _router?.removeListener(_onRoutesChanged);
+    _searchFocus.dispose();
     _bloc.close();
     _menu.dispose();
     _searchController.dispose();
@@ -171,11 +203,21 @@ class _ChatsScreenState extends State<ChatsScreen>
                                 elevation: 2,
                                 shadowColor: const Color(0x33000000),
                                 clipBehavior: Clip.antiAlias,
-                                child: IconButton(
-                                  tooltip: 'Profile',
-                                  icon: const ProfileIcon(),
-                                  onPressed: () =>
-                                      context.router.push(const ProfileRoute()),
+                                child: ValueListenableBuilder(
+                                  valueListenable: AuthApi.instance.current,
+                                  builder: (context, me, _) {
+                                    final url = me?.photoUrl;
+                                    return IconButton(
+                                      tooltip: 'Profile',
+                                      padding:
+                                          url == null ? null : EdgeInsets.zero,
+                                      icon: url == null
+                                          ? const ProfileIcon()
+                                          : _ProfilePhoto(url: url),
+                                      onPressed: () => context.router
+                                          .push(const ProfileRoute()),
+                                    );
+                                  },
                                 ),
                               ),
                             ],
@@ -186,6 +228,7 @@ class _ChatsScreenState extends State<ChatsScreen>
                           // The same field as message search.
                           child: RoundField(
                             controller: _searchController,
+                            focusNode: _searchFocus,
                             hintText: 'Search chats...',
                             onChanged: (value) =>
                                 setState(() => _query = value),
@@ -563,6 +606,33 @@ class _UnreadBadge extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The user's photo filling the round profile button; the person icon
+/// while it loads or if it fails.
+class _ProfilePhoto extends StatelessWidget {
+  const _ProfilePhoto({required this.url});
+
+  final String url;
+
+  static const _size = 48.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = mediaUrl(url);
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: media.url,
+        cacheKey: media.cacheKey,
+        width: _size,
+        height: _size,
+        fit: BoxFit.cover,
+        memCacheWidth: (_size * MediaQuery.devicePixelRatioOf(context)).round(),
+        placeholder: (_, __) => const Center(child: ProfileIcon()),
+        errorWidget: (_, __, ___) => const Center(child: ProfileIcon()),
       ),
     );
   }

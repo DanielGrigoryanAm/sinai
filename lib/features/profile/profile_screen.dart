@@ -9,6 +9,7 @@ import 'package:sinai/auth/account_link.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/account/account_options.dart';
+import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
@@ -39,13 +40,30 @@ class _ProfileView extends StatefulWidget {
 }
 
 class _ProfileViewState extends State<_ProfileView> {
-  late String _savedName =
-      FirebaseAuth.instance.currentUser?.displayName?.trim() ?? '';
+  /// The saved profile, shown at once; [_loadProfile] refreshes it.
+  final ApiUser? _cached = AuthApi.instance.current.value;
+
+  late String _savedName = _cached?.name.trim().isNotEmpty == true
+      ? _cached!.name.trim()
+      : FirebaseAuth.instance.currentUser?.displayName?.trim() ?? '';
   late final TextEditingController _nameController =
       TextEditingController(text: _savedName);
   bool _saving = false;
 
   bool _signingOut = false;
+
+  /// The photo full screen, as uploaded (square, not the circle); with
+  /// no photo yet, picks one.
+  void _openPhoto() {
+    final url = _photoUrl;
+    if (url == null) {
+      _pickPhoto();
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ImageViewerScreen(imageUrl: url)),
+    );
+  }
 
   /// Asks what to do with the photo: pick one, or remove the current one.
   Future<void> _onPhotoTap() async {
@@ -127,8 +145,8 @@ class _ProfileViewState extends State<_ProfileView> {
     await signOut(context);
   }
 
-  /// The user's own code, once the backend has sent it.
-  String? _code;
+  /// The user's own code, once known (saved or from the backend).
+  late String? _code = _cached?.code.isNotEmpty == true ? _cached!.code : null;
 
   @override
   void initState() {
@@ -137,7 +155,7 @@ class _ProfileViewState extends State<_ProfileView> {
   }
 
   /// The profile photo; null shows the first letter.
-  String? _photoUrl;
+  late String? _photoUrl = _cached?.photoUrl;
   bool _uploadingPhoto = false;
 
   Future<void> _loadCode() async {
@@ -146,7 +164,15 @@ class _ProfileViewState extends State<_ProfileView> {
       if (!mounted) return;
       setState(() {
         if (me.code.isNotEmpty) _code = me.code;
-        _photoUrl = me.photoUrl;
+        if (!_uploadingPhoto) _photoUrl = me.photoUrl;
+        // A name changed elsewhere, unless one is being typed or saved.
+        final name = me.name.trim();
+        if (name.isNotEmpty &&
+            !_saving &&
+            _nameController.text.trim() == _savedName) {
+          _savedName = name;
+          _nameController.text = name;
+        }
       });
     } catch (e) {
       debugPrint('Could not load the profile: $e');
@@ -204,7 +230,8 @@ class _ProfileViewState extends State<_ProfileView> {
                       title: initialSource.isEmpty ? '?' : initialSource,
                       photoUrl: _photoUrl,
                       busy: _uploadingPhoto,
-                      onTap: _uploadingPhoto ? null : _onPhotoTap,
+                      onPhotoTap: _uploadingPhoto ? null : _openPhoto,
+                      onCameraTap: _uploadingPhoto ? null : _onPhotoTap,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -378,51 +405,57 @@ class _CodeRowState extends State<_CodeRow> {
   }
 }
 
-/// The profile photo (or first letter) with a camera badge; a tap changes
-/// it.
+/// The profile photo (or first letter) with a camera badge: a tap on the
+/// photo shows it, on the badge changes it.
 class _ProfilePhoto extends StatelessWidget {
   const _ProfilePhoto({
     required this.title,
     required this.photoUrl,
     required this.busy,
-    required this.onTap,
+    required this.onPhotoTap,
+    required this.onCameraTap,
   });
 
   final String title;
   final String? photoUrl;
   final bool busy;
-  final VoidCallback? onTap;
+  final VoidCallback? onPhotoTap;
+  final VoidCallback? onCameraTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        children: [
-          ChatAvatar(title: title, photoUrl: photoUrl, size: 96),
-          if (busy)
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0x66000000),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: SizedBox.square(
-                    dimension: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                    ),
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: onPhotoTap,
+          child: ChatAvatar(title: title, photoUrl: photoUrl, size: 96),
+        ),
+        if (busy)
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0x66000000),
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
                   ),
                 ),
               ),
-            )
-          else
-            Positioned(
-              right: 0,
-              bottom: 0,
+            ),
+          )
+        else
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: GestureDetector(
+              onTap: onCameraTap,
+              behavior: HitTestBehavior.opaque,
               child: Container(
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
@@ -440,8 +473,8 @@ class _ProfilePhoto extends StatelessWidget {
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
