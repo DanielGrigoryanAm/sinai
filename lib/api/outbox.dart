@@ -257,7 +257,9 @@ class Outbox {
     switch (op.type) {
       case sendText:
         return _chats.send(op.chat,
-            text: (d['text'] as String?) ?? '', replyTo: replyTo);
+            text: (d['text'] as String?) ?? '',
+            replyTo: replyTo,
+            clientId: d['localId'] as String?);
       case sendImage:
         final bytes = await File(d['path'] as String).readAsBytes();
         final key = await _chats.upload(op.chat,
@@ -269,13 +271,17 @@ class Outbox {
             imageKey: key,
             imageWidth: d['width'] as int?,
             imageHeight: d['height'] as int?,
-            replyTo: replyTo);
+            replyTo: replyTo,
+            clientId: d['localId'] as String?);
       case sendVoice:
         final bytes = await File(d['path'] as String).readAsBytes();
         final key = await _chats.upload(op.chat,
             kind: 'voice', contentType: 'audio/mp4', bytes: bytes);
         return _chats.send(op.chat,
-            audioKey: key, audioMs: d['ms'] as int?, replyTo: replyTo);
+            audioKey: key,
+            audioMs: d['ms'] as int?,
+            replyTo: replyTo,
+            clientId: d['localId'] as String?);
       case edit:
         await _chats.edit(op.chat, d['id'] as String, d['text'] as String);
       case deleteMessage:

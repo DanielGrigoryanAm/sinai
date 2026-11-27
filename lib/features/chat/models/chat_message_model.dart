@@ -29,6 +29,10 @@ class ChatMessage {
   /// Name of the original author when this message was forwarded.
   final String? forwardedFrom;
 
+  /// The id this app gave the message before sending it (`local-…`), so
+  /// its "sending" copy is swapped for it exactly.
+  final String? clientId;
+
   ChatMessage({
     required this.id,
     required this.text,
@@ -44,6 +48,7 @@ class ChatMessage {
     this.replyTo,
     this.isEdited = false,
     this.forwardedFrom,
+    this.clientId,
   });
 
   /// Not on the backend yet: shown while it waits to be sent.
@@ -71,6 +76,7 @@ class ChatMessage {
           },
         'editedAt': isEdited ? createdAt?.toUtc().toIso8601String() ?? '' : null,
         'forwardedFrom': forwardedFrom,
+        'clientId': clientId,
       };
 
   /// The same message with some fields changed.
@@ -94,6 +100,7 @@ class ChatMessage {
         replyTo: replyTo,
         isEdited: isEdited ?? this.isEdited,
         forwardedFrom: forwardedFrom,
+        clientId: clientId,
       );
 
   bool get isVoice => audioUrl != null && audioUrl!.isNotEmpty;

@@ -185,9 +185,12 @@ class ChatsApi {
     String? audioKey,
     int? audioMs,
     String? forwardedFrom,
+    String? clientId,
   }) async =>
       message(await _api.post('${_chat(code)}/messages', {
         'text': text,
+        // The app's own id: sending it again returns the same message.
+        if (clientId != null) 'clientId': clientId,
         if (replyTo != null) 'replyTo': replyTo,
         if (imageKey != null) 'imageUrl': imageKey,
         if (imageWidth != null) 'imageWidth': imageWidth,
@@ -291,6 +294,7 @@ class ChatsApi {
           : null,
       isEdited: m['editedAt'] != null,
       forwardedFrom: m['forwardedFrom'] as String?,
+      clientId: m['clientId'] as String?,
     );
   }
 

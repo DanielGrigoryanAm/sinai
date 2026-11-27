@@ -114,7 +114,10 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
         ];
       }
     }
-    final shown = {for (final m in list) m.id};
+    // A waiting copy is dropped once the backend's message for it is here.
+    final shown = {
+      for (final m in list) ...[m.id, if (m.clientId != null) m.clientId],
+    };
     return [
       ...list,
       for (final m in _outbox.pendingMessages(code, me))
@@ -643,14 +646,9 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
         final isNew = !_openMessages.any((m) => m.id == message.id);
         if (e.type == 'message.updated' && isNew) return;
         // The socket can beat the reply to the send itself: the user's own
-        // new message then takes the place of its "sending" copy.
-        String? pending;
-        if (isNew && message.senderId == me) {
-          pending = _openMessages
-              .where((m) => m.id.startsWith('local-') && m.text == message.text)
-              .firstOrNull
-              ?.id;
-        }
+        // new message then takes the place of its "sending" copy, found by
+        // the id this app gave it.
+        final pending = message.senderId == me ? message.clientId : null;
         _upsert(message, replacing: pending);
         if (message.senderId != me) _markRead();
         _emitOpen(emit);
