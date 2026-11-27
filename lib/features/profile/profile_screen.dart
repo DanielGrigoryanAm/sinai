@@ -2,9 +2,8 @@ import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:sinai/common/chat_avatar.dart';
-import 'package:sinai/common/photo_compress.dart';
+import 'package:sinai/common/photo_crop_screen.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/auth/account_link.dart';
 import 'package:sinai/common/confirm_dialog.dart';
@@ -88,19 +87,9 @@ class _ProfileViewState extends State<_ProfileView> {
 
   Future<void> _pickPhoto() async {
     try {
-      final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 85,
-      );
-      if (picked == null || !mounted) return;
+      final photo = await pickRoundPhoto(context);
+      if (photo == null || !mounted) return;
       setState(() => _uploadingPhoto = true);
-      final photo = await compressPhoto(
-        await picked.readAsBytes(),
-        picked.mimeType ?? 'image/jpeg',
-        maxSide: 600,
-      );
       final me = await AuthApi.instance.setPhoto(photo.bytes, photo.type);
       if (mounted) setState(() => _photoUrl = me.photoUrl);
     } catch (e) {

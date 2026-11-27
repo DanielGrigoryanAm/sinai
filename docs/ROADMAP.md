@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — Photo editor for profile and chat photos: after picking, `PhotoCropScreen` shows a clear circle over a dimmed photo; drag and pinch (double tap 1×/2×), the photo can't be made smaller than the circle or moved off it; Save crops the circle's square (≤600 px JPEG). `ChatAvatar` now clips with `ClipOval` and draws its ring on top (`photo_crop_screen.dart`, `chat_avatar.dart`, `profile_screen.dart`, `chat_info_sheet.dart`). Not checked on a device.
 - 2026-11-27 — Message search screen: the chat's back tab (moved to `edge_tab.dart` as `EdgeTab`, shared with `chat_header.dart`) next to a rounded search field; "Type at least 2 letters" replaced by an empty state ("Search this chat" with a search mark), friendlier "Nothing found" / error texts (`message_search_screen.dart`). Not checked on a device.
 - 2026-11-27 — Messages reloads its list quietly whenever it is on top again (router listener), so a chat just created, joined or opened by code shows without pulling to refresh (`chats_screen.dart`). Not checked on a device.
 - 2026-11-27 — Sign out button drawn red (line, text, icon): `CustomButton.outline(color:)` (`custom_button.dart`, `profile_screen.dart`). Not checked on a device.

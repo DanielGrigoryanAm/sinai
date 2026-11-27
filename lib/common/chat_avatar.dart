@@ -34,14 +34,15 @@ class ChatAvatar extends StatelessWidget {
     );
     final url = photoUrl;
 
+    // The photo is clipped to a circle by itself and the white ring is
+    // drawn over it, so a photo's square corners never show at the edge.
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: const Color(0xFFECEDF2),
+      decoration: const BoxDecoration(
+        color: Color(0xFFECEDF2),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 1.5),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
             color: Color(0x1F000000),
             blurRadius: 6,
@@ -49,18 +50,25 @@ class ChatAvatar extends StatelessWidget {
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: url == null || url.isEmpty
-          ? letter
-          : CachedNetworkImage(
-              imageUrl: mediaUrl(url).url,
-              cacheKey: mediaUrl(url).cacheKey,
-              fit: BoxFit.cover,
-              memCacheWidth:
-                  (size * MediaQuery.devicePixelRatioOf(context)).round(),
-              placeholder: (_, __) => letter,
-              errorWidget: (_, __, ___) => letter,
-            ),
+      foregroundDecoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: ClipOval(
+        child: url == null || url.isEmpty
+            ? letter
+            : CachedNetworkImage(
+                imageUrl: mediaUrl(url).url,
+                cacheKey: mediaUrl(url).cacheKey,
+                fit: BoxFit.cover,
+                width: size,
+                height: size,
+                memCacheWidth:
+                    (size * MediaQuery.devicePixelRatioOf(context)).round(),
+                placeholder: (_, __) => letter,
+                errorWidget: (_, __, ___) => letter,
+              ),
+      ),
     );
   }
 }

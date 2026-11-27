@@ -3,12 +3,11 @@ import 'package:sinai/common/toast.dart';
 import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/chat/widgets/chat_media_screen.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:sinai/common/photo_crop_screen.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:sinai/common/chat_avatar.dart';
-import 'package:sinai/common/photo_compress.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chat/chat_status.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
@@ -107,20 +106,9 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
   /// Owner only: picks a photo and makes it the chat's picture.
   Future<void> _changePhoto(String? oldPhotoUrl) async {
     try {
-      final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 85,
-      );
-      if (picked == null) return;
+      final photo = await pickRoundPhoto(context);
+      if (photo == null || !mounted) return;
       setState(() => _uploadingPhoto = true);
-
-      final photo = await compressPhoto(
-        await picked.readAsBytes(),
-        picked.mimeType ?? 'image/jpeg',
-        maxSide: 600,
-      );
       await ChatsApi.instance.setPhoto(
         widget.chatCode,
         photo.bytes,
