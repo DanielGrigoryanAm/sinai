@@ -1,16 +1,19 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Stores whether the user has confirmed their name on the onboarding screen.
+/// Stores whether the user has got through onboarding, i.e. signed in.
+///
+/// The key keeps its old name: people who confirmed their name before
+/// sign-in became required stay past onboarding.
 class OnboardingPrefs {
-  static const _nameConfirmedKey = 'name_confirmed';
+  static const _signedInKey = 'name_confirmed';
 
-  static Future<bool> isNameConfirmed() async {
+  static Future<bool> isSignedIn() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_nameConfirmedKey) ?? false;
+    return prefs.getBool(_signedInKey) ?? false;
   }
 
-  static Future<void> setNameConfirmed() async {
+  static Future<void> setSignedIn() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_nameConfirmedKey, true);
+    await prefs.setBool(_signedInKey, true);
   }
 }

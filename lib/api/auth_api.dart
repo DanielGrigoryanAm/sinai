@@ -29,11 +29,10 @@ class ApiUser {
 
 /// Signs the user in to the backend.
 ///
-/// Everyone already has a Firebase account: the app signs in to Firebase
-/// anonymously on first start, and phone numbers are confirmed there. So
-/// the backend session is made from the Firebase ID token, which keeps
-/// people moved over from the Firebase app in their own account, chats
-/// included, and gives newcomers one the same way.
+/// New users sign in to Firebase with Google on onboarding (older ones may
+/// still be anonymous). The backend session is made from the Firebase ID
+/// token: the backend finds the account by its Firebase uid, or makes a
+/// new one the first time.
 class AuthApi {
   AuthApi([ApiClient? client]) : _api = client ?? ApiClient.instance;
 
@@ -54,15 +53,18 @@ class AuthApi {
       throw StateError('Not signed in to Firebase');
     }
     final idToken = await firebaseUser.getIdToken(true);
+    // Used by the backend only for a new account. Google names can be
+    // longer than the 40 characters it takes.
+    final name = (firebaseUser.displayName ?? '').trim();
     final body = await _api.postPublic('/v1/auth/firebase', {
       'idToken': idToken,
-      'name': firebaseUser.displayName ?? '',
+      'name': String.fromCharCodes(name.runes.take(40)).trim(),
     });
     final user = await _api.startSession(body as Map<String, dynamic>);
     return ApiUser.fromJson(user);
   }
 
-  /// After signing in to another Firebase account (by phone number), moves
+  /// After signing in to another Firebase account (Google, phone), moves
   /// the backend session and the live socket over to it too.
   Future<ApiUser> switchToFirebaseAccount() async {
     await LiveSocket.instance.stop();

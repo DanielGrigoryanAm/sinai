@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:sinai/auth/account_link.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/app_icons.dart';
-import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/feature_flags.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:sinai/router/app_router.dart';
@@ -12,19 +11,15 @@ import 'package:sinai/theme/color_theme.dart';
 
 /// Picks a Google account and adds it to this account, or moves to the
 /// account it belongs to. True when it was added here.
-Future<bool> continueWithGoogle(BuildContext context,
-    {required bool restore}) async {
+Future<bool> continueWithGoogle(BuildContext context) async {
   final auth = AuthRepository();
   try {
     final credential = await auth.googleCredential();
     if (!context.mounted) return false;
     final outcome = await linkOrSwitch(context, credential,
-        restore: restore, what: 'Google account');
+        restore: false, what: 'Google account');
     if (outcome == LinkOutcome.linked) {
-      showToast(
-        restore ? 'Google account saved. Now enter your name' : 'Google added',
-        kind: ToastKind.success,
-      );
+      showToast('Google added', kind: ToastKind.success);
       return true;
     }
   } on SignInCancelled {
@@ -33,6 +28,21 @@ Future<bool> continueWithGoogle(BuildContext context,
     showToast(e.message, kind: ToastKind.error);
   }
   return false;
+}
+
+/// Onboarding: signs in with a Google account. The first time it makes a
+/// Sinai account; after that it brings the same one back, chats included.
+Future<void> signInWithGoogle(BuildContext context) async {
+  final auth = AuthRepository();
+  try {
+    final credential = await auth.googleCredential();
+    if (!context.mounted) return;
+    await signInWith(context, credential);
+  } on SignInCancelled {
+    // Closed the Google window: nothing to say.
+  } on PhoneAuthFailure catch (e) {
+    showToast(e.message, kind: ToastKind.error);
+  }
 }
 
 /// The ways to keep the account, on the user's own profile: each shows
@@ -54,7 +64,7 @@ class _AccountSectionState extends State<AccountSection> {
 
   Future<void> _google() async {
     setState(() => _busy = true);
-    await continueWithGoogle(context, restore: false);
+    await continueWithGoogle(context);
     if (mounted) setState(() => _busy = false);
   }
 
@@ -105,68 +115,6 @@ class _AccountSectionState extends State<AccountSection> {
                     },
             ),
         ],
-      ),
-    );
-  }
-}
-
-/// Getting an existing account back on a fresh install.
-@RoutePage()
-class RestoreScreen extends StatefulWidget {
-  const RestoreScreen({super.key});
-
-  @override
-  State<RestoreScreen> createState() => _RestoreScreenState();
-}
-
-class _RestoreScreenState extends State<RestoreScreen> {
-  bool _busy = false;
-
-  Future<void> _google() async {
-    setState(() => _busy = true);
-    final added = await continueWithGoogle(context, restore: true);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    // A Google account new to Sinai: back to onboarding for the name.
-    if (added) context.router.maybePop(true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colorTheme;
-    final text = context.textTheme;
-    return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'Restore account',
-        showBackButton: true,
-      ),
-      backgroundColor: colors.backgroundPrimary,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(30, 24, 30, 30),
-          children: [
-            Text(
-              'Sign in the way you saved your account. Your name and chats '
-              'will come back.',
-              style: text.bodyLarge.copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: 28),
-            if (FeatureFlags.googleSignIn)
-              _Option(
-                mark: const GoogleMark(),
-                label: 'Continue with Google',
-                onTap: _busy ? null : _google,
-              ),
-            if (FeatureFlags.phoneSignIn)
-              _Option(
-                mark: Icon(AppIcons.phone, size: 20, color: colors.secondary),
-                label: 'Continue with phone number',
-                onTap: _busy
-                    ? null
-                    : () => context.router.push(PhoneRoute(restore: true)),
-              ),
-          ],
-        ),
       ),
     );
   }

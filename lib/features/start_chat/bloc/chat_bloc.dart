@@ -12,7 +12,6 @@ import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:sinai/api/live_socket.dart';
-import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
@@ -43,7 +42,6 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> with _BackendChats {
       }
       await user.updateDisplayName(event.name);
       await AuthApi.instance.rename(event.name);
-      await OnboardingPrefs.setNameConfirmed();
       emit(UserNameSaved(event.name));
     } catch (e) {
       emit(ChatError('Failed to save user name'));

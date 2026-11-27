@@ -31,15 +31,15 @@ void main() async {
   // Doesn't hold up the start; the banner or block appears when it knows.
   unawaited(AppUpdate.instance.start());
 
-  if (FirebaseAuth.instance.currentUser == null) {
-    await FirebaseAuth.instance.signInAnonymously();
-  }
+  // No account is made without signing in: a new user signs in with Google
+  // on onboarding. Older users may still be anonymous and keep working.
+  final hasAccount = FirebaseAuth.instance.currentUser != null;
 
   // The backend session comes from the Firebase account, so people keep
   // their chats when the app moves over.
   // Offline at start: keep trying in the background; the socket connects
   // as soon as there is a session.
-  if (!await _signIn()) {
+  if (hasAccount && !await _signIn()) {
     unawaited(() async {
       while (!await _signIn()) {
         await Future<void>.delayed(const Duration(seconds: 5));
@@ -54,8 +54,8 @@ void main() async {
   await DraftStore.instance.load();
   await ThemeStore.instance.load();
 
-  final nameConfirmed = await OnboardingPrefs.isNameConfirmed();
-  appRouter = AppRouter(showOnboarding: !nameConfirmed);
+  final signedIn = hasAccount && await OnboardingPrefs.isSignedIn();
+  appRouter = AppRouter(showOnboarding: !signedIn);
   toastOverlay = () => appRouter.navigatorKey.currentState?.overlay;
 
   NotificationService.instance.onOpenChat = (chatCode, chatName) {

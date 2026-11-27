@@ -48,19 +48,28 @@ Future<LinkOutcome> linkOrSwitch(
           confirmLabel: 'Sign in',
         );
     if (!confirmed || !context.mounted) return LinkOutcome.cancelled;
-    await _switchAccount(context, e.credential);
+    await signInWith(context, e.credential);
     return LinkOutcome.switched;
   }
 }
 
-Future<void> _switchAccount(
+/// Signs in to the account [credential] belongs to (Google makes one the
+/// first time), moves the backend session, notifications and live socket
+/// over to it, and opens the chats list.
+///
+/// The backend finds the account by its Firebase uid, or makes a new one.
+/// Throws [PhoneAuthFailure] with a readable message.
+Future<void> signInWith(
   BuildContext context,
   AuthCredential credential,
 ) async {
   final auth = AuthRepository();
+  final hadAccount = FirebaseAuth.instance.currentUser != null;
   try {
     // This phone's notifications belong to the account being left.
-    await NotificationService.instance.removeTokenFromCurrentUser();
+    if (hadAccount) {
+      await NotificationService.instance.removeTokenFromCurrentUser();
+    }
     await auth.signIn(credential);
     // The backend session follows the Firebase account.
     await AuthApi.instance.switchToFirebaseAccount();
@@ -68,17 +77,16 @@ Future<void> _switchAccount(
     QuickReactionsStore.instance.start();
   } on PhoneAuthFailure {
     // Put this phone's notifications back on the current account.
-    await NotificationService.instance.addTokenToCurrentUser();
+    if (hadAccount) await NotificationService.instance.addTokenToCurrentUser();
     rethrow;
+  } catch (e) {
+    debugPrint('Sign-in failed: $e');
+    if (hadAccount) await NotificationService.instance.addTokenToCurrentUser();
+    throw const PhoneAuthFailure('Could not sign in. Check the internet');
   }
 
-  final hasName =
-      FirebaseAuth.instance.currentUser?.displayName?.trim().isNotEmpty ??
-          false;
-  if (hasName) await OnboardingPrefs.setNameConfirmed();
+  await OnboardingPrefs.setSignedIn();
 
   if (!context.mounted) return;
-  context.router.replaceAll([
-    if (hasName) const ChatsRoute() else const OnboardingRoute(),
-  ]);
+  context.router.replaceAll([const ChatsRoute()]);
 }
