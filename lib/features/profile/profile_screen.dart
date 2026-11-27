@@ -2,6 +2,9 @@ import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:sinai/common/chat_avatar.dart';
+import 'package:sinai/common/photo_compress.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/auth/account_link.dart';
 import 'package:sinai/common/confirm_dialog.dart';
@@ -45,6 +48,82 @@ class _ProfileViewState extends State<_ProfileView> {
 
   bool _signingOut = false;
 
+  /// Asks what to do with the photo: pick one, or remove the current one.
+  Future<void> _onPhotoTap() async {
+    if (_photoUrl == null) return _pickPhoto();
+    final colors = context.colorTheme;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: colors.backgroundSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(AppIcons.addImage, color: colors.secondary),
+                title: const Text('Choose a new photo'),
+                onTap: () => Navigator.pop(context, 'pick'),
+              ),
+              ListTile(
+                leading: const Icon(AppIcons.trash, color: Color(0xFFDC2626)),
+                title: const Text(
+                  'Remove photo',
+                  style: TextStyle(color: Color(0xFFDC2626)),
+                ),
+                onTap: () => Navigator.pop(context, 'remove'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == 'pick') await _pickPhoto();
+    if (choice == 'remove') await _removePhoto();
+  }
+
+  Future<void> _pickPhoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 85,
+      );
+      if (picked == null || !mounted) return;
+      setState(() => _uploadingPhoto = true);
+      final photo = await compressPhoto(
+        await picked.readAsBytes(),
+        picked.mimeType ?? 'image/jpeg',
+        maxSide: 600,
+      );
+      final me = await AuthApi.instance.setPhoto(photo.bytes, photo.type);
+      if (mounted) setState(() => _photoUrl = me.photoUrl);
+    } catch (e) {
+      debugPrint('Changing the profile photo failed: $e');
+      showToast('Could not change the photo', kind: ToastKind.error);
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    setState(() => _uploadingPhoto = true);
+    try {
+      await AuthApi.instance.removePhoto();
+      if (mounted) setState(() => _photoUrl = null);
+    } catch (e) {
+      debugPrint('Removing the profile photo failed: $e');
+      showToast('Could not remove the photo', kind: ToastKind.error);
+    } finally {
+      if (mounted) setState(() => _uploadingPhoto = false);
+    }
+  }
+
   Future<void> _signOut() async {
     final confirmed = await showConfirmDialog(
       context,
@@ -68,10 +147,18 @@ class _ProfileViewState extends State<_ProfileView> {
     _loadCode();
   }
 
+  /// The profile photo; null shows the first letter.
+  String? _photoUrl;
+  bool _uploadingPhoto = false;
+
   Future<void> _loadCode() async {
     try {
       final me = await AuthApi.instance.me();
-      if (mounted && me.code.isNotEmpty) setState(() => _code = me.code);
+      if (!mounted) return;
+      setState(() {
+        if (me.code.isNotEmpty) _code = me.code;
+        _photoUrl = me.photoUrl;
+      });
     } catch (e) {
       debugPrint('Could not load the profile: $e');
     }
@@ -124,31 +211,11 @@ class _ProfileViewState extends State<_ProfileView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Center(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFECEDF2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x1F000000),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        initialSource.isEmpty
-                            ? '?'
-                            : initialSource.characters.first.toUpperCase(),
-                        style: text.titleLarge.copyWith(
-                          fontSize: 38,
-                          color: const Color(0xFF6B7080),
-                        ),
-                      ),
+                    child: _ProfilePhoto(
+                      title: initialSource.isEmpty ? '?' : initialSource,
+                      photoUrl: _photoUrl,
+                      busy: _uploadingPhoto,
+                      onTap: _uploadingPhoto ? null : _onPhotoTap,
                     ),
                   ),
                   const SizedBox(height: 36),
@@ -286,6 +353,74 @@ class _CodeCardState extends State<_CodeCard> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The profile photo (or first letter) with a camera badge; a tap changes
+/// it.
+class _ProfilePhoto extends StatelessWidget {
+  const _ProfilePhoto({
+    required this.title,
+    required this.photoUrl,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final String title;
+  final String? photoUrl;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          ChatAvatar(title: title, photoUrl: photoUrl, size: 96),
+          if (busy)
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Color(0x66000000),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: colors.secondary,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: colors.backgroundPrimary,
+                    width: 2,
+                  ),
+                ),
+                child: const Icon(
+                  AppIcons.camera,
+                  size: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

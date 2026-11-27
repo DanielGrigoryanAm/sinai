@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import 'package:sinai/api/api_client.dart';
+import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/live_socket.dart';
 
 /// The signed-in user as the backend knows them.
@@ -16,7 +20,7 @@ class ApiUser {
         id: json['id'] as String,
         name: (json['name'] as String?) ?? '',
         code: (json['code'] as String?) ?? '',
-        photoUrl: json['photoUrl'] as String?,
+        photoUrl: ChatsApi.fileUrl(json['photoUrl']),
         quickReactions:
             (json['quickReactions'] as List?)?.whereType<String>().toList(),
       );
@@ -85,6 +89,28 @@ class AuthApi {
   /// both are in use.
   Future<ApiUser> rename(String name) async => ApiUser.fromJson(
         await _api.patch('/v1/me', {'name': name}) as Map<String, dynamic>,
+      );
+
+  /// Uploads [bytes] and makes them the user's profile photo.
+  Future<ApiUser> setPhoto(Uint8List bytes, String contentType) async {
+    final upload = await _api.post('/v1/me/uploads', {
+      'contentType': contentType,
+    }) as Map;
+    final response = await http.put(
+      Uri.parse(upload['uploadUrl'] as String),
+      headers: {'Content-Type': contentType},
+      body: bytes,
+    );
+    if (response.statusCode >= 300) {
+      throw ApiException(response.statusCode, 'upload', 'Upload failed');
+    }
+    return ApiUser.fromJson(await _api.patch('/v1/me', {
+      'photoUrl': upload['key'],
+    }) as Map<String, dynamic>);
+  }
+
+  Future<ApiUser> removePhoto() async => ApiUser.fromJson(
+        await _api.patch('/v1/me', {'photoUrl': ''}) as Map<String, dynamic>,
       );
 
   Future<void> setQuickReactions(List<String> list) =>

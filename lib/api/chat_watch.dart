@@ -62,17 +62,20 @@ Map<String, dynamic> _shape(Map<String, dynamic> raw) {
   for (final m in (raw['members'] as List? ?? const [])) {
     members[m['userId'] as String] = {
       'name': ((m['name'] as String?) ?? '').trim(),
+      'photoUrl': ChatsApi.fileUrl(m['photoUrl']),
       'online': m['online'] == true,
       'lastSeen': DateTime.tryParse('${m['lastSeen']}')?.toLocal(),
     };
   }
   final direct = raw['direct'] == true;
+  final peer = direct ? _peer(members) : null;
   return {
     // A direct chat has no name of its own: it is the other person's.
-    'name': direct ? _peerName(members) : raw['name'],
+    'name': direct ? (peer?['name']) : raw['name'],
     'direct': direct,
     'ownerId': raw['ownerId'],
-    'photoUrl': ChatsApi.fileUrl(raw['photoUrl']),
+    'photoUrl':
+        direct ? (peer?['photoUrl']) : ChatsApi.fileUrl(raw['photoUrl']),
     'game': raw['game'],
     'watch': raw['watch'],
     // The server's clock and ours when this arrived, to read the server's
@@ -84,11 +87,11 @@ Map<String, dynamic> _shape(Map<String, dynamic> raw) {
   };
 }
 
-/// The other person's name in a direct chat; null when they left.
-String? _peerName(Map<String, Map<String, dynamic>> members) {
+/// The other person in a direct chat; null when they left.
+Map<String, dynamic>? _peer(Map<String, Map<String, dynamic>> members) {
   final me = currentUserId();
   for (final entry in members.entries) {
-    if (entry.key != me) return entry.value['name'] as String?;
+    if (entry.key != me) return entry.value;
   }
   return null;
 }
