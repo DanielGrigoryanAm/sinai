@@ -13,7 +13,6 @@ import 'package:record/record.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/composer_controller.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
-import 'package:sinai/gen/assets.gen.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -397,9 +396,10 @@ class _MessageFieldState extends State<MessageField> {
                             padding: const EdgeInsets.only(left: 5),
                             child: IconButton(
                               tooltip: 'Attach photo',
-                              icon: Assets.icons.photo.image(
-                                height: 32,
-                                width: 32,
+                              icon: Icon(
+                                AppIcons.photo,
+                                size: 24,
+                                color: colors.secondary,
                               ),
                               onPressed: _attachImage,
                             ),
@@ -412,17 +412,19 @@ class _MessageFieldState extends State<MessageField> {
                       child: canSend
                           ? IconButton(
                               tooltip: 'Send',
-                              icon: Assets.icons.send.image(
-                                height: 35,
-                                width: 35,
+                              icon: Icon(
+                                AppIcons.send,
+                                size: 24,
+                                color: colors.secondary,
                               ),
                               onPressed: _send,
                             )
                           : IconButton(
                               tooltip: 'Record voice message',
-                              icon: Assets.icons.mic.image(
-                                height: 34,
-                                width: 34,
+                              icon: Icon(
+                                AppIcons.microphone,
+                                size: 24,
+                                color: colors.secondary,
                               ),
                               onPressed: _startRecording,
                             ),
@@ -569,7 +571,7 @@ class _RecordingBar extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Send voice message',
-            icon: Assets.icons.send.image(height: 35, width: 35),
+            icon: Icon(AppIcons.send, size: 24, color: colors.secondary),
             onPressed: onSend,
           ),
           const SizedBox(width: 5),
