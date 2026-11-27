@@ -3,11 +3,60 @@ import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
+import 'package:sinai/theme/chat_colors_store.dart';
 import 'package:sinai/theme/theme_store.dart';
 
-/// Lets the user pick the app's main colors. Changes apply right away.
+/// The app's colors, everywhere: accent, background, cards. Opened from
+/// the profile; changes apply right away.
 class AppColorsScreen extends StatelessWidget {
   const AppColorsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return _ColorsScreen(
+      title: 'App colors',
+      slots: ColorSlot.app,
+      onPick: ThemeStore.instance.set,
+      onReset: ThemeStore.instance.reset,
+    );
+  }
+}
+
+/// One chat's own colors: the user's message bubbles and the text. Other
+/// chats keep theirs.
+class ChatColorsScreen extends StatelessWidget {
+  const ChatColorsScreen({super.key, required this.chatCode});
+
+  final String chatCode;
+
+  @override
+  Widget build(BuildContext context) {
+    // Shows (and previews) the chat as it looks with its own colors.
+    return ChatColorsScope(
+      chatCode: chatCode,
+      child: _ColorsScreen(
+        title: 'Chat colors',
+        slots: ColorSlot.chat,
+        onPick: (slot, color) =>
+            ChatColorsStore.instance.set(chatCode, slot, color),
+        onReset: () => ChatColorsStore.instance.reset(chatCode),
+      ),
+    );
+  }
+}
+
+class _ColorsScreen extends StatelessWidget {
+  const _ColorsScreen({
+    required this.title,
+    required this.slots,
+    required this.onPick,
+    required this.onReset,
+  });
+
+  final String title;
+  final List<ColorSlot> slots;
+  final void Function(ColorSlot slot, Color color) onPick;
+  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -15,11 +64,11 @@ class AppColorsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: colors.backgroundPrimary,
       appBar: CustomAppBar(
-        title: 'App colors',
+        title: title,
         showBackButton: true,
         actions: [
           TextButton(
-            onPressed: ThemeStore.instance.reset,
+            onPressed: onReset,
             child: Text('Reset', style: TextStyle(color: colors.secondary)),
           ),
         ],
@@ -27,8 +76,8 @@ class AppColorsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          for (final slot in ColorSlot.values) ...[
-            _SlotPicker(slot: slot),
+          for (final slot in slots) ...[
+            _SlotPicker(slot: slot, onPick: (c) => onPick(slot, c)),
             const SizedBox(height: 20),
           ],
         ],
@@ -38,9 +87,10 @@ class AppColorsScreen extends StatelessWidget {
 }
 
 class _SlotPicker extends StatelessWidget {
-  const _SlotPicker({required this.slot});
+  const _SlotPicker({required this.slot, required this.onPick});
 
   final ColorSlot slot;
+  final ValueChanged<Color> onPick;
 
   static const _swatches = {
     ColorSlot.accent: [
@@ -127,7 +177,7 @@ class _SlotPicker extends StatelessWidget {
             slot.hint,
             style: TextStyle(fontSize: 13, color: colors.textSecondary),
           ),
-          if (slot == ColorSlot.myBubble || slot == ColorSlot.text) ...[
+          if (slot.isChat) ...[
             const SizedBox(height: 14),
             const _ChatPreview(),
           ],
@@ -140,7 +190,7 @@ class _SlotPicker extends StatelessWidget {
                 _Swatch(
                   color: swatch,
                   selected: swatch.toARGB32() == current.toARGB32(),
-                  onTap: () => ThemeStore.instance.set(slot, swatch),
+                  onTap: () => onPick(swatch),
                 ),
             ],
           ),

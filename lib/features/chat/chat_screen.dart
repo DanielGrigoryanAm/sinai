@@ -5,6 +5,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:sinai/api/chat_watch.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/theme/chat_colors_store.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/confirm_dialog.dart';
@@ -43,9 +44,13 @@ class ChatScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) => ChatBloc()..add(MessagesSubscribeEvent(chatCode)),
-      child: ChatScreenView(
+      // The chat's own colors (Chat colors) over the app's.
+      child: ChatColorsScope(
         chatCode: chatCode,
-        chatName: chatName,
+        child: ChatScreenView(
+          chatCode: chatCode,
+          chatName: chatName,
+        ),
       ),
     );
   }

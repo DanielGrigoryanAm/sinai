@@ -17,6 +17,7 @@ import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/theme/text_theme.dart';
 import 'package:sinai/theme/theme_store.dart';
+import 'package:sinai/theme/chat_colors_store.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 
@@ -64,6 +65,7 @@ void main() async {
   // What the user did offline last time goes out as soon as it can.
   if (hasAccount) await Outbox.instance.load();
   await ThemeStore.instance.load();
+  await ChatColorsStore.instance.load();
 
   final signedIn = hasAccount && await OnboardingPrefs.isSignedIn();
   appRouter = AppRouter(showOnboarding: !signedIn);

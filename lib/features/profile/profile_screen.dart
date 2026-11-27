@@ -13,6 +13,7 @@ import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/settings_section.dart';
+import 'package:sinai/features/settings/app_colors_screen.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -273,6 +274,28 @@ class _ProfileViewState extends State<_ProfileView> {
                     caption: 'Others see this name next to your new '
                         'messages. Messages you already sent keep the old '
                         'name.',
+                  ),
+                  const SizedBox(height: 24),
+                  SettingsSection(
+                    label: 'Appearance',
+                    caption: 'Colors of the whole app. Each chat can have '
+                        'its own message colors: chat → Chat colors.',
+                    rows: [
+                      SettingsRow(
+                        leading: const Icon(AppIcons.palette),
+                        trailing: Icon(
+                          AppIcons.arrowRight,
+                          size: 18,
+                          color: colors.textSecondary,
+                        ),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const AppColorsScreen(),
+                          ),
+                        ),
+                        child: const Text('App colors'),
+                      ),
+                    ],
                   ),
                   if (AccountSection.enabled) ...[
                     const SizedBox(height: 24),

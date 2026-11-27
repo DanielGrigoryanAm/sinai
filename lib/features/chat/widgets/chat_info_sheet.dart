@@ -392,12 +392,14 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                       ),
                       const SizedBox(height: 12),
                     ],
+                    // This chat's own colors; the app's are in the profile.
                     _SheetRow(
                       icon: AppIcons.palette,
-                      label: 'App colors',
+                      label: 'Chat colors',
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => const AppColorsScreen(),
+                          builder: (_) =>
+                              ChatColorsScreen(chatCode: widget.chatCode),
                         ),
                       ),
                     ),

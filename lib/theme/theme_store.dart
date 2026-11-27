@@ -26,6 +26,7 @@ class ThemeStore extends ValueNotifier<ColorTheme> {
     await prefs.setInt('$_prefix${slot.name}', color.toARGB32());
   }
 
+  /// Back to the app's own colors. Chats keep the colors set in them.
   Future<void> reset() async {
     value = lightColorTheme;
     final prefs = await SharedPreferences.getInstance();
@@ -35,18 +36,32 @@ class ThemeStore extends ValueNotifier<ColorTheme> {
   }
 }
 
-/// The colors the user can pick.
+/// The colors the user can pick: the app's own (profile → App colors)
+/// and a chat's (chat → Chat colors), see [isChat].
 enum ColorSlot {
   accent('Accent', 'Buttons, highlights, online status'),
   background('Background', 'Behind chats and messages'),
   surface('Cards', 'Bubbles, fields and sheets'),
   myBubble('My messages', 'Bubbles of your own messages'),
-  text('Text', 'Titles and message text');
+  text('Text', 'Message text and titles in this chat');
 
   const ColorSlot(this.label, this.hint);
 
   final String label;
   final String hint;
+
+  /// Set per chat, in that chat only (see ChatColorsStore); the others
+  /// are the app's, everywhere.
+  bool get isChat => this == myBubble || this == text;
+
+  static List<ColorSlot> get app => [
+        for (final s in values)
+          if (!s.isChat) s
+      ];
+  static List<ColorSlot> get chat => [
+        for (final s in values)
+          if (s.isChat) s
+      ];
 
   Color of(ColorTheme t) => switch (this) {
         accent => t.secondary,
