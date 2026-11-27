@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/emoji_text.dart';
 import 'package:flutter/services.dart';
 import 'package:sinai/features/chat/quick_reactions_store.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
@@ -40,9 +41,9 @@ abstract final class Reactions {
   static final List<String> all = _all.characters.toList(growable: false);
 }
 
-/// Text style for emoji. No font family, so the platform emoji font draws
-/// them rather than the app's text font.
-const _emojiStyle = TextStyle(fontFamily: null, height: 1.15);
+/// Text style for emoji: the platform's colour emoji font, not the app's
+/// text font, which has some of them as black symbols.
+final _emojiStyle = emojiStyle.copyWith(height: 1.15);
 
 /// Opens the full emoji list. Resolves to the emoji picked to react with,
 /// or null.

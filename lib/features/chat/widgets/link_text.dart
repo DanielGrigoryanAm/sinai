@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:sinai/common/emoji_text.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final _urlPattern = RegExp(
@@ -52,13 +53,16 @@ class _LinkTextState extends State<LinkText> {
     _recognizers.clear();
 
     final matches = _urlPattern.allMatches(widget.text).toList();
-    if (matches.isEmpty) return Text(widget.text, style: widget.style);
+    if (matches.isEmpty) {
+      return Text.rich(
+          TextSpan(style: widget.style, children: emojiSpans(widget.text)));
+    }
 
     final spans = <InlineSpan>[];
     var last = 0;
     for (final match in matches) {
       if (match.start > last) {
-        spans.add(TextSpan(text: widget.text.substring(last, match.start)));
+        spans.addAll(emojiSpans(widget.text.substring(last, match.start)));
       }
       final raw = match.group(0)!;
       final uri = _toUri(raw);
@@ -77,7 +81,7 @@ class _LinkTextState extends State<LinkText> {
       last = match.end;
     }
     if (last < widget.text.length) {
-      spans.add(TextSpan(text: widget.text.substring(last)));
+      spans.addAll(emojiSpans(widget.text.substring(last)));
     }
     return Text.rich(TextSpan(style: widget.style, children: spans));
   }
