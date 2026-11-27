@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
@@ -142,6 +143,108 @@ class SettingsRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A word on the right of a [SettingsRow] that does the row's thing
+/// ("Save", "Join"), or a small spinner while it is busy.
+class SettingsRowAction extends StatelessWidget {
+  const SettingsRowAction({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.busy = false,
+  });
+
+  final String label;
+
+  /// Null greys it out.
+  final VoidCallback? onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    if (busy) {
+      return SizedBox.square(
+        dimension: 18,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: colors.secondary,
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          label,
+          style: context.textTheme.bodyLarge.copyWith(
+            fontWeight: FontWeight.w700,
+            color: onTap == null
+                ? colors.textSecondary.withAlpha(120)
+                : colors.secondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A text field filling a [SettingsRow], without a frame of its own.
+class SettingsField extends StatelessWidget {
+  const SettingsField({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    this.onChanged,
+    this.onSubmitted,
+    this.autofocus = false,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
+    this.letterSpacing,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final bool autofocus;
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Spaces out codes.
+  final double? letterSpacing;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    final text = context.textTheme;
+    return TextField(
+      controller: controller,
+      autofocus: autofocus,
+      cursorColor: colors.secondary,
+      textCapitalization: textCapitalization,
+      textInputAction: TextInputAction.done,
+      inputFormatters: inputFormatters,
+      style: text.bodyLarge.copyWith(
+        fontWeight: FontWeight.w500,
+        letterSpacing: letterSpacing,
+      ),
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: hintText,
+        hintStyle: text.bodyLarge.copyWith(
+          color: colors.textSecondary,
+          letterSpacing: 0,
+        ),
+        border: InputBorder.none,
       ),
     );
   }

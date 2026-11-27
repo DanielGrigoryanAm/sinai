@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
-import 'package:sinai/common/custom_button.dart';
-import 'package:sinai/common/custom_text_field.dart';
+import 'package:sinai/common/settings_section.dart';
 import 'package:sinai/router/app_router.dart';
-import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 import 'bloc/chat_bloc.dart';
@@ -37,7 +35,8 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: Scaffold(
-          appBar: const CustomAppBar(showBackButton: true),
+          appBar:
+              const CustomAppBar(title: 'Create a chat', showBackButton: true),
           backgroundColor: context.colorTheme.backgroundPrimary,
           body: BlocConsumer<ChatBloc, ChatState>(
             listener: (context, state) {
@@ -52,36 +51,38 @@ class _CreateChatScreenState extends State<CreateChatScreen> {
             },
             builder: (context, state) {
               final isLoading = state is ChatLoading;
+              final canCreate = name.isNotEmpty && !isLoading;
+              void create() =>
+                  context.read<ChatBloc>().add(CreateChatEvent(name));
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Name your chat',
-                      style: context.textTheme.titleLarge.copyWith(
-                        fontSize: 30,
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                children: [
+                  SettingsSection(
+                    label: 'Chat name',
+                    caption: 'Everyone in the chat sees it. You can change '
+                        'it later.',
+                    rows: [
+                      SettingsRow(
+                        trailing: SettingsRowAction(
+                          label: 'Create',
+                          busy: isLoading,
+                          onTap: canCreate ? create : null,
+                        ),
+                        child: SettingsField(
+                          controller: _nameController,
+                          hintText: 'Enter chat name',
+                          autofocus: true,
+                          textCapitalization: TextCapitalization.sentences,
+                          onChanged: (_) => setState(() {}),
+                          onSubmitted: (_) {
+                            if (canCreate) create();
+                          },
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 50),
-                    CustomTextField(
-                      controller: _nameController,
-                      hintText: 'Enter chat name',
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 20),
-                    CustomButton.primary(
-                      text: 'Create',
-                      isLoading: isLoading,
-                      onTap: name.isNotEmpty && !isLoading
-                          ? () => context
-                              .read<ChatBloc>()
-                              .add(CreateChatEvent(name))
-                          : null,
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               );
             },
           ),
