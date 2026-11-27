@@ -21,6 +21,11 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   final Map<String, Timer> _typingTimers = {};
   bool _watchingList = false;
 
+  /// Chats deleted here, with when the backend confirmed it (null while it
+  /// hasn't). A list asked for before that moment may still have them, so
+  /// they stay hidden until a list asked for after it arrives.
+  final Map<String, DateTime?> _gone = {};
+
   // Open chat
   String? _openCode;
   List<ChatMessage> _openMessages = const [];
@@ -187,8 +192,13 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     _BackendChatsReloadInternal event,
     Emitter<ChatState> emit,
   ) async {
+    final askedAt = DateTime.now();
     try {
       _summaries = await _chatsApi.chats();
+      // Deletions the backend had already made when this was asked for
+      // are in it: a chat still listed was joined again, so it shows.
+      _gone.removeWhere(
+          (_, doneAt) => doneAt != null && doneAt.isBefore(askedAt));
       _emitChatsList(emit);
     } catch (e) {
       debugPrint('Loading chats failed: $e');
@@ -204,7 +214,7 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   void _emitChatsList(Emitter<ChatState> emit) {
     if (!_watchingList || _openCode != null) return;
     // Chats deleted here stay gone even before the backend has heard.
-    final deleted = _outbox.deletedChats;
+    final deleted = {..._outbox.deletedChats, ..._gone.keys};
     final me = currentUserId();
     final rows = <ChatSummary>[];
     for (final chat in _summaries) {
@@ -256,7 +266,11 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       // Unknown in the open chat: the outbox asks the backend.
       data: {'isOwner': summary?.isOwner},
     ));
-    _summaries = [for (final c in _summaries) if (c.code != code) c];
+    _summaries = [
+      for (final c in _summaries)
+        if (c.code != code) c
+    ];
+    _gone[code] = null;
     unawaited(_chatsApi.forgetCachedChat(code));
     emit(ChatDeleted(code));
     _emitChatsList(emit);
@@ -492,9 +506,22 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     final error = result.error;
 
     if (op.type == Outbox.deleteChat) {
-      // Refused (say, the owner can't leave): it comes back.
-      if (error != null && _watchingList) {
-        emit(ChatError(error));
+      if (error != null) {
+        // Refused (say, the owner can't leave): it comes back.
+        _gone.remove(op.chat);
+        if (_watchingList) {
+          emit(ChatError(error));
+          _reloadChatsSoon();
+        }
+      } else if (_watchingList) {
+        // Done (here or from inside the chat): gone from this list, and
+        // the next list asked for from now on won't have it either.
+        _summaries = [
+          for (final c in _summaries)
+            if (c.code != op.chat) c
+        ];
+        _gone[op.chat] = DateTime.now();
+        _emitChatsList(emit);
         _reloadChatsSoon();
       }
       return;
@@ -508,7 +535,10 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
         _markRead();
       } else if (error != null) {
         if (localId != null) {
-          _openMessages = [for (final m in _openMessages) if (m.id != localId) m];
+          _openMessages = [
+            for (final m in _openMessages)
+              if (m.id != localId) m
+          ];
         }
         emit(ChatError(error));
         // What the backend has is the truth again.
@@ -567,7 +597,10 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       ));
     }
     if (_openCode == code) {
-      _openMessages = [for (final m in _openMessages) if (m.id != id) m];
+      _openMessages = [
+        for (final m in _openMessages)
+          if (m.id != id) m
+      ];
       _emitOpen(emit);
     }
   }
@@ -633,8 +666,7 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     if (e.type == 'typing.stop') return;
 
     // The list follows anything that changes a chat's row.
-    if (e.type.startsWith('message.') ||
-        e.type.startsWith('chat.')) {
+    if (e.type.startsWith('message.') || e.type.startsWith('chat.')) {
       _reloadChatsSoon();
     }
 
@@ -654,7 +686,10 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
         _emitOpen(emit);
       case 'message.deleted':
         final id = (e.data as Map)['id'];
-        _openMessages = [for (final m in _openMessages) if (m.id != id) m];
+        _openMessages = [
+          for (final m in _openMessages)
+            if (m.id != id) m
+        ];
         _emitOpen(emit);
       case 'chat.read':
         final data = e.data as Map;

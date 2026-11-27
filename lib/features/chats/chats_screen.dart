@@ -129,9 +129,6 @@ class _ChatsScreenState extends State<ChatsScreen>
           if (state is ChatError) {
             showToast(state.message, kind: ToastKind.error);
           }
-          if (state is ChatDeleted) {
-            context.read<ChatBloc>().add(const GetChatsEvent());
-          }
         },
         child: PopScope(
           canPop: false,
