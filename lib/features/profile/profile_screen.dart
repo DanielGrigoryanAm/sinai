@@ -1,6 +1,9 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:sinai/api/auth_api.dart';
+import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/account/account_options.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -37,6 +40,24 @@ class _ProfileViewState extends State<_ProfileView> {
   late final TextEditingController _nameController =
       TextEditingController(text: _savedName);
   bool _saving = false;
+
+  /// The user's own code, once the backend has sent it.
+  String? _code;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCode();
+  }
+
+  Future<void> _loadCode() async {
+    try {
+      final me = await AuthApi.instance.me();
+      if (mounted && me.code.isNotEmpty) setState(() => _code = me.code);
+    } catch (e) {
+      debugPrint('Could not load the profile: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -114,6 +135,23 @@ class _ProfileViewState extends State<_ProfileView> {
                   ),
                   const SizedBox(height: 36),
                   Text(
+                    'YOUR CODE',
+                    style: text.bodySmall.copyWith(
+                      fontSize: 12,
+                      letterSpacing: 0.6,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _CodeCard(code: _code),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Others write to you by this code. Share it with '
+                    'people you want to talk to.',
+                    style: text.bodySmall.copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
                     'YOUR NAME',
                     style: text.bodySmall.copyWith(
                       fontSize: 12,
@@ -155,6 +193,72 @@ class _ProfileViewState extends State<_ProfileView> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The user's code in large letters, copied on tap.
+class _CodeCard extends StatefulWidget {
+  const _CodeCard({required this.code});
+
+  /// Null while it loads.
+  final String? code;
+
+  @override
+  State<_CodeCard> createState() => _CodeCardState();
+}
+
+class _CodeCardState extends State<_CodeCard> {
+  bool _copied = false;
+
+  Future<void> _copy(String code) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() => _copied = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colorTheme;
+    final text = context.textTheme;
+    final code = widget.code;
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: code == null ? null : () => _copy(code),
+        child: Container(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  code ?? '········',
+                  style: text.titleLarge.copyWith(
+                    fontSize: 22,
+                    letterSpacing: 3,
+                    color: code == null ? colors.textSecondary : null,
+                  ),
+                ),
+              ),
+              Icon(
+                _copied ? AppIcons.check : AppIcons.copy,
+                size: 20,
+                color: colors.secondary,
+              ),
+            ],
           ),
         ),
       ),

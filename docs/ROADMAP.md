@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — Personal code (like a username): backend migration `0005_user_codes.sql` gives every user a unique 8-character code (existing users too), returned as `code` in `/v1/me`; profile shows it under "YOUR CODE", tap copies (`users.go`, `auth_api.dart`, `profile_screen.dart`). Branch `feature/google-sign-in`, not deployed; migration and smoke not run (local Docker broken), not checked on a device.
 - 2026-11-27 — backend: no anonymous accounts — `POST /v1/auth/guest` and `users.Create` removed, `/v1/auth/firebase` refuses tokens whose `sign_in_provider` is anonymous; smoke signs in via a fake Firebase on :9098 (`FIREBASE_TEST_CERTS_URL`) (`internal/auth`, `internal/users`, `internal/config`, `cmd/smoke`). Branch `feature/google-sign-in`, not deployed; `go test` passes, smoke not run (local Docker disk I/O error).
 - 2026-11-27 — App: no anonymous accounts — a leftover anonymous Firebase user is signed out at start (push token detached, backend session ended) and sees onboarding; profile → Account only shows the Google account (`main.dart`, `account_options.dart`). Not checked on a device.
 - 2026-11-27 — Sign-in required: onboarding is now only "Continue with Google" (no name field, no anonymous sign-in, Restore screen removed); the backend finds the account by Firebase uid or makes one, name taken from Google (`onboarding_screen.dart`, `account_link.dart` `signInWith`, `account_options.dart`, `main.dart`, `onboarding_prefs.dart`, `auth_api.dart`, router). Not checked on a device.
@@ -54,7 +55,7 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 
 ## Planned / ideas
 
-- Next: one-to-one chats. You add someone by their code; the chat shows
+- Next: one-to-one chats. You add someone by their personal code; the chat shows
   the other person's name (and they see yours) instead of a chat name.
   Group chats by code stay as a secondary kind.
 - Turn off the Anonymous provider in the Firebase console after the

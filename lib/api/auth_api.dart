@@ -7,6 +7,7 @@ class ApiUser {
   const ApiUser({
     required this.id,
     required this.name,
+    this.code = '',
     this.photoUrl,
     this.quickReactions,
   });
@@ -14,6 +15,7 @@ class ApiUser {
   factory ApiUser.fromJson(Map<String, dynamic> json) => ApiUser(
         id: json['id'] as String,
         name: (json['name'] as String?) ?? '',
+        code: (json['code'] as String?) ?? '',
         photoUrl: json['photoUrl'] as String?,
         quickReactions:
             (json['quickReactions'] as List?)?.whereType<String>().toList(),
@@ -21,6 +23,9 @@ class ApiUser {
 
   final String id;
   final String name;
+
+  /// Their own code, unique, like a username: others find them by it.
+  final String code;
   final String? photoUrl;
 
   /// Their own quick reactions; null for the app's default set.
