@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/common/confirm_dialog.dart';
+import 'package:sinai/common/round_field.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 import 'package:sinai/features/chats/widgets/new_chat_menu.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
@@ -185,8 +186,10 @@ class _ChatsScreenState extends State<ChatsScreen>
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: _SearchField(
+                          // The same field as message search.
+                          child: RoundField(
                             controller: _searchController,
+                            hintText: 'Search chats...',
                             onChanged: (value) =>
                                 setState(() => _query = value),
                           ),
@@ -310,48 +313,6 @@ class _ChatsScreenState extends State<ChatsScreen>
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller, required this.onChanged});
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colorTheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 10,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        onChanged: onChanged,
-        textInputAction: TextInputAction.search,
-        style: context.textTheme.bodyLarge,
-        cursorColor: colors.secondary,
-        decoration: InputDecoration(
-          hintText: 'Search chats...',
-          hintStyle: context.textTheme.bodyLarge.copyWith(
-            color: colors.textSecondary,
-          ),
-          prefixIcon: Icon(AppIcons.search, color: colors.textSecondary),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
-        ),
       ),
     );
   }
