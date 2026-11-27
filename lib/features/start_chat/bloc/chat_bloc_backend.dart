@@ -8,8 +8,11 @@ part of 'chat_bloc.dart';
 /// something changed, so nothing polls.
 mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   final _chatsApi = ChatsApi.instance;
+  final _outbox = Outbox.instance;
 
   StreamSubscription<LiveEvent>? _liveSubscription;
+  StreamSubscription<OutboxResult>? _outboxSubscription;
+  Timer? _cacheSoon;
   Timer? _chatsReload;
 
   // Chats list
@@ -24,9 +27,11 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   final Map<String, DateTime> _othersRead = {};
   bool _more = false;
   bool _loadingMore = false;
-  int _uploads = 0;
   String? _lastReadId;
-  int _localIds = 0;
+
+  /// What the open chat shows came from the cache: the backend's first
+  /// page replaces all of it, not just the newest part.
+  bool _fromCache = false;
 
   void _registerBackend() {
     on<CreateChatEvent>(_beCreate);
@@ -43,9 +48,12 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     on<ToggleReactionEvent>(_beReact);
     on<_BackendLiveInternal>(_beLive);
     on<_BackendChatsReloadInternal>(_beReloadChats);
+    on<_OutboxResultInternal>(_beOutboxResult);
 
     _liveSubscription = LiveSocket.instance.events
         .listen((event) => add(_BackendLiveInternal(event)));
+    _outboxSubscription =
+        _outbox.results.listen((r) => add(_OutboxResultInternal(r)));
   }
 
   void _emitOpen(Emitter<ChatState> emit) {
@@ -59,8 +67,69 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       seenAt: seen,
       hasMore: _more,
       isLoadingMore: _loadingMore,
-      isSendingImage: _uploads > 0,
+      isSendingImage:
+          _openCode != null && _outbox.pendingUploads(_openCode!) > 0,
     ));
+    _cacheOpenSoon();
+  }
+
+  /// Keeps what the open chat shows for its next opening, once things
+  /// settle.
+  void _cacheOpenSoon() {
+    final code = _openCode;
+    if (code == null) return;
+    _cacheSoon?.cancel();
+    _cacheSoon = Timer(const Duration(milliseconds: 800), () {
+      if (_openCode == code) _chatsApi.cacheMessages(code, _openMessages);
+    });
+  }
+
+  /// What the user did here that the backend doesn't know yet, laid over
+  /// what it sent: their deletions, edits and reactions, and their
+  /// messages still waiting to go.
+  List<ChatMessage> _withPending(String code, List<ChatMessage> messages) {
+    final me = currentUserId() ?? '';
+    final ops = _outbox.forChat(code);
+    final deleted = {
+      for (final op in ops)
+        if (op.type == Outbox.deleteMessage) op.data['id'],
+    };
+    var list = [
+      for (final m in messages)
+        if (!deleted.contains(m.id)) m,
+    ];
+    for (final op in ops) {
+      final id = op.data['id'];
+      if (op.type == Outbox.edit) {
+        list = [
+          for (final m in list)
+            m.id == id
+                ? m.copyWith(text: op.data['text'] as String, isEdited: true)
+                : m,
+        ];
+      } else if (op.type == Outbox.react) {
+        list = [
+          for (final m in list)
+            m.id == id ? _reacted(m, me, op.data['emoji'] as String?) : m,
+        ];
+      }
+    }
+    final shown = {for (final m in list) m.id};
+    return [
+      ...list,
+      for (final m in _outbox.pendingMessages(code, me))
+        if (!shown.contains(m.id)) m,
+    ];
+  }
+
+  static ChatMessage _reacted(ChatMessage m, String me, String? emoji) {
+    final reactions = Map<String, String>.from(m.reactions);
+    if (emoji == null) {
+      reactions.remove(me);
+    } else {
+      reactions[me] = emoji;
+    }
+    return m.copyWith(reactions: reactions);
   }
 
   /// Shows a failure, then puts the open chat back on screen.
@@ -97,8 +166,17 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   }
 
   Future<void> _beGetChats(GetChatsEvent event, Emitter<ChatState> emit) async {
-    if (state is! ChatsLoaded) emit(ChatLoading());
     _watchingList = true;
+    if (state is! ChatsLoaded) {
+      // What was here last time shows at once; the backend's list follows.
+      final cached = await _chatsApi.cachedChats();
+      if (cached != null) {
+        _summaries = cached;
+        _emitChatsList(emit);
+      } else {
+        emit(ChatLoading());
+      }
+    }
     await _beReloadChats(const _BackendChatsReloadInternal(), emit);
   }
 
@@ -111,31 +189,45 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       _emitChatsList(emit);
     } catch (e) {
       debugPrint('Loading chats failed: $e');
-      if (state is! ChatsLoaded) emit(ChatError('Could not load chats'));
+      // With a list on screen, stale is better than an error.
+      if (state is! ChatsLoaded) {
+        emit(ChatError('No connection'));
+        _summaries = const [];
+        _emitChatsList(emit);
+      }
     }
   }
 
   void _emitChatsList(Emitter<ChatState> emit) {
     if (!_watchingList || _openCode != null) return;
-    emit(ChatsLoaded([
-      for (final chat in _summaries)
-        _typingInList[chat.code] == null
-            ? chat
-            : ChatSummary(
-                code: chat.code,
-                name: chat.name,
-                lastMessage: chat.lastMessage,
-                lastSenderId: chat.lastSenderId,
-                lastSenderName: chat.lastSenderName,
-                lastActivityAt: chat.lastActivityAt,
-                hasUnread: chat.hasUnread,
-                isOwner: chat.isOwner,
-                typingName: _typingInList[chat.code],
-                unreadCount: chat.unreadCount,
-                photoUrl: chat.photoUrl,
-                direct: chat.direct,
-              ),
-    ]));
+    // Chats deleted here stay gone even before the backend has heard.
+    final deleted = _outbox.deletedChats;
+    final me = currentUserId();
+    final rows = <ChatSummary>[];
+    for (final chat in _summaries) {
+      if (deleted.contains(chat.code)) continue;
+      // The user's newest message still waiting to go shows as the last.
+      final waiting = _outbox.pendingMessages(chat.code, me ?? '').lastOrNull;
+      final typing = _typingInList[chat.code];
+      rows.add(waiting == null && typing == null
+          ? chat
+          : ChatSummary(
+              code: chat.code,
+              name: chat.name,
+              lastMessage: waiting?.text ?? chat.lastMessage,
+              lastSenderId: waiting == null ? chat.lastSenderId : me,
+              lastSenderName: chat.lastSenderName,
+              lastActivityAt:
+                  waiting == null ? chat.lastActivityAt : DateTime.now(),
+              hasUnread: chat.hasUnread,
+              isOwner: chat.isOwner,
+              typingName: typing,
+              unreadCount: chat.unreadCount,
+              photoUrl: chat.photoUrl,
+              direct: chat.direct,
+            ));
+    }
+    emit(ChatsLoaded(rows));
   }
 
   /// Several changes in a row reload the list once.
@@ -147,24 +239,24 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     });
   }
 
+  /// Gone from the list at once; the backend hears of it when it can.
   Future<void> _beDeleteChat(
     DeleteChatEvent event,
     Emitter<ChatState> emit,
   ) async {
-    emit(ChatLoading());
     final code = event.code.toUpperCase();
-    try {
-      final chat = await _chatsApi.chat(code);
-      await _chatsApi.deleteOrLeave(
-        code,
-        isOwner: chat['ownerId'] == currentUserId(),
-      );
-      emit(ChatDeleted(code));
-    } on ApiException catch (e) {
-      emit(ChatError(e.isNotFound ? 'Chat not found' : e.message));
-    } catch (e) {
-      emit(ChatError(e.toString()));
-    }
+    final summary = _summaries.where((c) => c.code == code).firstOrNull;
+    await _outbox.add(OutboxOp(
+      id: _outbox.newLocalId(),
+      type: Outbox.deleteChat,
+      chat: code,
+      // Unknown in the open chat: the outbox asks the backend.
+      data: {'isOwner': summary?.isOwner},
+    ));
+    _summaries = [for (final c in _summaries) if (c.code != code) c];
+    unawaited(_chatsApi.forgetCachedChat(code));
+    emit(ChatDeleted(code));
+    _emitChatsList(emit);
   }
 
   // Open chat
@@ -173,13 +265,24 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     MessagesSubscribeEvent event,
     Emitter<ChatState> emit,
   ) async {
-    emit(ChatLoading());
-    _openCode = event.chatCode.toUpperCase();
+    final code = event.chatCode.toUpperCase();
+    _openCode = code;
     _openMessages = const [];
     _othersRead.clear();
     _more = false;
     _loadingMore = false;
     _lastReadId = null;
+    // The messages seen last time show at once, with what is waiting to
+    // go; the backend's newest page replaces them when it arrives.
+    final cached = await _chatsApi.cachedMessages(code);
+    if (_openCode != code) return;
+    _openMessages = _withPending(code, cached ?? const []);
+    _fromCache = true;
+    if (cached != null || _openMessages.isNotEmpty) {
+      _emitOpen(emit);
+    } else {
+      emit(ChatLoading());
+    }
     await _loadLatest(emit);
   }
 
@@ -201,12 +304,15 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       final latestIds = {for (final m in latest) m.id};
       final oldestLatest = latest.isEmpty ? null : latest.first.createdAt;
       final older = _openMessages.where((m) =>
+          !_fromCache &&
           !latestIds.contains(m.id) &&
           m.createdAt != null &&
           oldestLatest != null &&
           m.createdAt!.isBefore(oldestLatest));
-      _openMessages = [...older, ...latest];
-      _more = _more || latest.length >= _pageSize;
+      final keptOlder = older.toList();
+      _openMessages = _withPending(code, [...keptOlder, ...latest]);
+      _more = latest.length >= _pageSize || keptOlder.isNotEmpty || _more;
+      _fromCache = false;
 
       _othersRead.clear();
       for (final member in (chat['members'] as List? ?? const [])) {
@@ -217,7 +323,12 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       _emitOpen(emit);
     } catch (e) {
       debugPrint('Loading messages failed: $e');
-      emit(ChatError('Could not load messages'));
+      if (_openCode != code) return;
+      // Offline: what is on screen stays; it reloads on reconnecting.
+      if (state is! MessagesLoaded) {
+        emit(ChatError('No connection'));
+        _emitOpen(emit);
+      }
     }
   }
 
@@ -234,9 +345,12 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     _loadingMore = true;
     _emitOpen(emit);
     try {
+      final oldest = _openMessages.firstWhere((m) => !m.isLocal,
+          orElse: () => _openMessages.first);
+      if (oldest.isLocal) throw StateError('Nothing sent to page from');
       final older = await _chatsApi.messages(
         code,
-        before: _openMessages.first.id,
+        before: oldest.id,
         limit: _pageSize,
       );
       if (_openCode != code) return;
@@ -254,10 +368,12 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   void _markRead() {
     final code = _openCode;
     if (code == null || _openMessages.isEmpty) return;
-    final last = _openMessages.last;
-    if (last.createdAt == null || last.id == _lastReadId) return;
+    final last = _openMessages.lastWhere((m) => !m.isLocal,
+        orElse: () => _openMessages.last);
+    if (last.isLocal || last.id == _lastReadId) return;
     _lastReadId = last.id;
-    _chatsApi.markRead(code).catchError((Object _) {});
+    // Offline: tried again on the next change or reconnect.
+    _chatsApi.markRead(code).catchError((Object _) => _lastReadId = null);
   }
 
   /// Puts or replaces a message, kept in time order.
@@ -268,58 +384,43 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     ];
     list.add(message);
     list.sort((a, b) {
-      // Messages still sending go last.
+      // Messages still sending go last, in the order they were written
+      // (their ids grow).
       final at = a.createdAt, bt = b.createdAt;
-      if (at == null || bt == null) return at == bt ? 0 : (at == null ? 1 : -1);
+      if (at == null && bt == null) return a.id.compareTo(b.id);
+      if (at == null || bt == null) return at == null ? 1 : -1;
       return at.compareTo(bt);
     });
     _openMessages = list;
   }
 
-  /// Shows the user's message at once, as "sending", until the backend
-  /// confirms it.
-  String _showPending(String text, ReplyPreview? replyTo) {
-    final id = 'local-${_localIds++}';
-    _upsert(ChatMessage(
-      id: id,
-      text: text,
-      senderId: currentUserId() ?? '',
-      senderName: '',
-      createdAt: null,
-      replyTo: replyTo,
-    ));
-    return id;
-  }
-
+  /// The user's message shows at once, as "sending", and goes out through
+  /// the outbox: now, or when the internet is back.
   Future<void> _beSend(SendMessageEvent event, Emitter<ChatState> emit) async {
     final code = event.chatCode.toUpperCase();
-    final pending = _showPending(event.text, event.replyTo);
-    if (_openCode == code) _emitOpen(emit);
-    try {
-      final sent = await _chatsApi.send(
-        code,
-        text: event.text,
-        replyTo: event.replyTo?.messageId,
-      );
-      if (_openCode == code) {
-        // The socket may have put it in already; this settles it either way.
-        _upsert(sent, replacing: pending);
-        _markRead();
-        _emitOpen(emit);
-      }
-    } catch (e) {
-      _openMessages = [for (final m in _openMessages) if (m.id != pending) m];
-      _fail(emit, 'Could not send the message', e);
+    final localId = _outbox.newLocalId();
+    await _outbox.add(OutboxOp(
+      id: localId,
+      type: Outbox.sendText,
+      chat: code,
+      data: {
+        'localId': localId,
+        'text': event.text,
+        if (event.replyTo != null) 'replyTo': event.replyTo!.toMap(),
+      },
+    ));
+    if (_openCode == code) {
+      _openMessages = _withPending(code, _openMessages);
+      _emitOpen(emit);
     }
   }
 
+  /// A photo waits in the outbox, kept in a file, until it is uploaded.
   Future<void> _beSendImage(
     SendImageEvent event,
     Emitter<ChatState> emit,
   ) async {
     final code = event.chatCode.toUpperCase();
-    _uploads++;
-    if (state is MessagesLoaded) _emitOpen(emit);
     try {
       // Decoded only for the size, so every client reserves the right
       // space before the picture loads.
@@ -327,22 +428,24 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
       final frame = await codec.getNextFrame();
       final width = frame.image.width, height = frame.image.height;
       frame.image.dispose();
-
-      final key = await _chatsApi.upload(code,
-          kind: 'image', contentType: event.contentType, bytes: event.bytes);
-      final sent = await _chatsApi.send(code,
-          text: event.caption,
-          imageKey: key,
-          imageWidth: width,
-          imageHeight: height,
-          replyTo: event.replyTo?.messageId);
-      _uploads--;
-      if (_openCode == code) {
-        _upsert(sent);
-        _emitOpen(emit);
-      }
+      final ext = event.contentType == 'image/png' ? '.png' : '.jpg';
+      final localId = _outbox.newLocalId();
+      await _outbox.add(OutboxOp(
+        id: localId,
+        type: Outbox.sendImage,
+        chat: code,
+        data: {
+          'localId': localId,
+          'path': await _outbox.keepFile(event.bytes, ext),
+          'contentType': event.contentType,
+          'caption': event.caption,
+          'width': width,
+          'height': height,
+          if (event.replyTo != null) 'replyTo': event.replyTo!.toMap(),
+        },
+      ));
+      if (_openCode == code) _emitOpen(emit);
     } catch (e) {
-      _uploads--;
       _fail(emit, 'Failed to send the photo', e);
     }
   }
@@ -353,24 +456,21 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
   ) async {
     final code = event.chatCode.toUpperCase();
     final recording = File(event.filePath);
-    _uploads++;
-    if (state is MessagesLoaded) _emitOpen(emit);
     try {
-      final key = await _chatsApi.upload(code,
-          kind: 'voice',
-          contentType: 'audio/mp4',
-          bytes: await recording.readAsBytes());
-      final sent = await _chatsApi.send(code,
-          audioKey: key,
-          audioMs: event.duration.inMilliseconds,
-          replyTo: event.replyTo?.messageId);
-      _uploads--;
-      if (_openCode == code) {
-        _upsert(sent);
-        _emitOpen(emit);
-      }
+      final localId = _outbox.newLocalId();
+      await _outbox.add(OutboxOp(
+        id: localId,
+        type: Outbox.sendVoice,
+        chat: code,
+        data: {
+          'localId': localId,
+          'path': await _outbox.keepFile(await recording.readAsBytes(), '.m4a'),
+          'ms': event.duration.inMilliseconds,
+          if (event.replyTo != null) 'replyTo': event.replyTo!.toMap(),
+        },
+      ));
+      if (_openCode == code) _emitOpen(emit);
     } catch (e) {
-      _uploads--;
       _fail(emit, 'Failed to send the voice message', e);
     } finally {
       try {
@@ -379,44 +479,124 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
     }
   }
 
-  Future<void> _beEdit(EditMessageEvent event, Emitter<ChatState> emit) async {
-    try {
-      await _chatsApi.edit(event.chatCode, event.messageId, event.text);
-    } catch (e) {
-      _fail(emit, 'Could not edit the message', e);
+  /// A send, edit or deletion went through, or the backend refused it.
+  Future<void> _beOutboxResult(
+    _OutboxResultInternal event,
+    Emitter<ChatState> emit,
+  ) async {
+    final result = event.result;
+    final op = result.op;
+    final error = result.error;
+
+    if (op.type == Outbox.deleteChat) {
+      // Refused (say, the owner can't leave): it comes back.
+      if (error != null && _watchingList) {
+        emit(ChatError(error));
+        _reloadChatsSoon();
+      }
+      return;
+    }
+    if (_openCode == op.chat) {
+      final localId = op.data['localId'] as String?;
+      final sent = result.sent;
+      if (sent != null) {
+        // The socket may have put it in already; this settles it either way.
+        _upsert(sent, replacing: localId);
+        _markRead();
+      } else if (error != null) {
+        if (localId != null) {
+          _openMessages = [for (final m in _openMessages) if (m.id != localId) m];
+        }
+        emit(ChatError(error));
+        // What the backend has is the truth again.
+        unawaited(_loadLatest(emit));
+      }
+      _emitOpen(emit);
+    }
+    if (_watchingList && (result.sent != null || error != null)) {
+      _reloadChatsSoon();
     }
   }
 
+  /// The new text shows at once; the backend hears when it can.
+  Future<void> _beEdit(EditMessageEvent event, Emitter<ChatState> emit) async {
+    final code = event.chatCode.toUpperCase();
+    final id = event.messageId;
+    final isLocal = id.startsWith('local-');
+    if (!isLocal || !await _outbox.editPending(id, event.text)) {
+      if (isLocal) {
+        // Already on its way: edited once it has an id.
+        return _fail(emit, 'Wait a moment, it is still sending', id);
+      }
+      await _outbox.add(OutboxOp(
+        id: _outbox.newLocalId(),
+        type: Outbox.edit,
+        chat: code,
+        data: {'id': id, 'text': event.text},
+      ));
+    }
+    if (_openCode == code) {
+      _openMessages = [
+        for (final m in _openMessages)
+          m.id == id ? m.copyWith(text: event.text, isEdited: !isLocal) : m,
+      ];
+      _emitOpen(emit);
+    }
+  }
+
+  /// Gone at once; a message not sent yet simply never goes.
   Future<void> _beDelete(
     DeleteMessageEvent event,
     Emitter<ChatState> emit,
   ) async {
-    try {
-      await _chatsApi.deleteMessage(event.chatCode, event.messageId);
-    } catch (e) {
-      _fail(emit, 'Could not delete the message', e);
+    final code = event.chatCode.toUpperCase();
+    final id = event.messageId;
+    if (id.startsWith('local-')) {
+      if (!await _outbox.cancelSend(id)) {
+        return _fail(emit, 'Wait a moment, it is still sending', id);
+      }
+    } else {
+      await _outbox.add(OutboxOp(
+        id: _outbox.newLocalId(),
+        type: Outbox.deleteMessage,
+        chat: code,
+        data: {'id': id},
+      ));
+    }
+    if (_openCode == code) {
+      _openMessages = [for (final m in _openMessages) if (m.id != id) m];
+      _emitOpen(emit);
     }
   }
 
-  /// Choosing the reaction the user already left removes it.
+  /// Choosing the reaction the user already left removes it. Shows at
+  /// once.
   Future<void> _beReact(
     ToggleReactionEvent event,
     Emitter<ChatState> emit,
   ) async {
-    final me = currentUserId();
+    final code = event.chatCode.toUpperCase();
+    final me = currentUserId() ?? '';
     final message =
         _openMessages.where((m) => m.id == event.messageId).firstOrNull;
-    final current = message?.reactions[me];
+    if (message == null || message.isLocal) return;
+    final current = message.reactions[me];
     final isSame = current != null &&
         Reactions.emojiOf(current) == Reactions.emojiOf(event.reaction);
-    try {
-      await _chatsApi.react(
-        event.chatCode,
-        event.messageId,
-        isSame ? null : Reactions.emojiOf(event.reaction),
-      );
-    } catch (e) {
-      _fail(emit, 'Could not add the reaction', e);
+    // Kept as the backend keeps it, the emoji itself.
+    final emoji = isSame ? null : Reactions.emojiOf(event.reaction);
+    await _outbox.add(OutboxOp(
+      id: _outbox.newLocalId(),
+      type: Outbox.react,
+      chat: code,
+      data: {'id': message.id, 'emoji': emoji},
+    ));
+    if (_openCode == code) {
+      _openMessages = [
+        for (final m in _openMessages)
+          m.id == message.id ? _reacted(m, me, emoji) : m,
+      ];
+      _emitOpen(emit);
     }
   }
 
@@ -500,7 +680,11 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
 
   Future<void> _closeBackend() async {
     await _liveSubscription?.cancel();
+    await _outboxSubscription?.cancel();
     _chatsReload?.cancel();
+    _cacheSoon?.cancel();
+    final code = _openCode;
+    if (code != null) unawaited(_chatsApi.cacheMessages(code, _openMessages));
     for (final timer in _typingTimers.values) {
       timer.cancel();
     }
@@ -514,4 +698,9 @@ class _BackendLiveInternal extends ChatEvent {
 
 class _BackendChatsReloadInternal extends ChatEvent {
   const _BackendChatsReloadInternal();
+}
+
+class _OutboxResultInternal extends ChatEvent {
+  const _OutboxResultInternal(this.result);
+  final OutboxResult result;
 }

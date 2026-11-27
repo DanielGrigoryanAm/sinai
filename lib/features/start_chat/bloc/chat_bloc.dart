@@ -12,6 +12,7 @@ import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:sinai/api/live_socket.dart';
+import 'package:sinai/api/outbox.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chat/widgets/reactions.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';

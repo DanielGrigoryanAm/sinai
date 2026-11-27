@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/api/live_socket.dart';
+import 'package:sinai/api/local_cache.dart';
+import 'package:sinai/api/outbox.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
@@ -77,6 +79,8 @@ Future<void> signInWith(
     await AuthApi.instance.switchToFirebaseAccount();
     await NotificationService.instance.addTokenToCurrentUser();
     QuickReactionsStore.instance.start();
+    // This account's own cache and waiting messages.
+    await Outbox.instance.load();
   } on PhoneAuthFailure {
     // Put this phone's notifications back on the current account.
     if (hadAccount) await NotificationService.instance.addTokenToCurrentUser();
@@ -109,6 +113,9 @@ Future<void> signOut(BuildContext context) async {
   }
   await OnboardingPrefs.clear();
   await DraftStore.instance.clear();
+  // Nothing of this account stays on the phone; unsent messages go too.
+  await Outbox.instance.clear();
+  await LocalCache.instance.clear();
 
   if (!context.mounted) return;
   context.router.replaceAll([const OnboardingRoute()]);

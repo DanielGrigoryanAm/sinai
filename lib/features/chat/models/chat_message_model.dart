@@ -46,6 +46,56 @@ class ChatMessage {
     this.forwardedFrom,
   });
 
+  /// Not on the backend yet: shown while it waits to be sent.
+  bool get isLocal => id.startsWith('local-');
+
+  /// The message in the backend's shape, so the cache reads it back the
+  /// same way as a fresh one (`ChatsApi.message`).
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'text': text,
+        'senderId': senderId,
+        'senderName': senderName,
+        'createdAt': createdAt?.toUtc().toIso8601String(),
+        'imageUrl': imageUrl,
+        'imageWidth': imageWidth,
+        'imageHeight': imageHeight,
+        'audioUrl': audioUrl,
+        'audioMs': audioDurationMs,
+        'reactions': reactions,
+        if (replyTo case final reply?)
+          'replyTo': {
+            'id': reply.messageId,
+            'senderName': reply.senderName,
+            'text': reply.text,
+          },
+        'editedAt': isEdited ? createdAt?.toUtc().toIso8601String() ?? '' : null,
+        'forwardedFrom': forwardedFrom,
+      };
+
+  /// The same message with some fields changed.
+  ChatMessage copyWith({
+    String? text,
+    Map<String, String>? reactions,
+    bool? isEdited,
+  }) =>
+      ChatMessage(
+        id: id,
+        text: text ?? this.text,
+        senderId: senderId,
+        senderName: senderName,
+        createdAt: createdAt,
+        imageUrl: imageUrl,
+        imageWidth: imageWidth,
+        imageHeight: imageHeight,
+        audioUrl: audioUrl,
+        audioDurationMs: audioDurationMs,
+        reactions: reactions ?? this.reactions,
+        replyTo: replyTo,
+        isEdited: isEdited ?? this.isEdited,
+        forwardedFrom: forwardedFrom,
+      );
+
   bool get isVoice => audioUrl != null && audioUrl!.isNotEmpty;
 
   bool get isImage => imageUrl != null && imageUrl!.isNotEmpty;

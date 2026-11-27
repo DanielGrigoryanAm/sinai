@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/api_config.dart';
+import 'package:sinai/api/local_cache.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 
@@ -42,10 +44,69 @@ class ChatsApi {
 
   Future<List<ChatSummary>> chats() async {
     final list = await _api.get('/v1/chats') as List;
+    // Kept as the backend sent it, for the next start (see cachedChats).
+    unawaited(LocalCache.instance.write(_chatsCache, list));
+    return _summaries(list);
+  }
+
+  static const _chatsCache = 'chats';
+  static String _messagesCache(String code) =>
+      'messages_${code.toUpperCase()}';
+
+  List<ChatSummary> _summaries(List list) {
     final me = _api.userId;
     return [
       for (final raw in list) _summary(raw as Map<String, dynamic>, me),
     ];
+  }
+
+  /// The chats list as last loaded; null when there is none on this phone.
+  Future<List<ChatSummary>?> cachedChats() async {
+    final list = await LocalCache.instance.read(_chatsCache);
+    if (list is! List) return null;
+    try {
+      return _summaries(list);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Takes a chat out of the cached list at once (deleted or left), so it
+  /// doesn't come back on the next start before the backend has heard.
+  Future<void> forgetCachedChat(String code) async {
+    final list = await LocalCache.instance.read(_chatsCache);
+    if (list is List) {
+      await LocalCache.instance.write(_chatsCache, [
+        for (final c in list)
+          if (c is Map && c['code'] != code.toUpperCase()) c,
+      ]);
+    }
+    await LocalCache.instance.remove(_messagesCache(code));
+  }
+
+  /// A chat's newest messages as last shown, oldest first.
+  Future<List<ChatMessage>?> cachedMessages(String code) async {
+    final list = await LocalCache.instance.read(_messagesCache(code));
+    if (list is! List) return null;
+    try {
+      return [for (final raw in list) message(raw as Map<String, dynamic>)];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Keeps up to the newest [keep] of [messages] for the next opening.
+  Future<void> cacheMessages(
+    String code,
+    List<ChatMessage> messages, {
+    int keep = 60,
+  }) {
+    final sent = [for (final m in messages) if (!m.isLocal) m];
+    final newest = sent.length > keep ? sent.sublist(sent.length - keep) : sent;
+    return LocalCache.instance.write(
+      _messagesCache(code),
+      [for (final m in newest) m.toJson()],
+    );
   }
 
   /// Creates a chat; returns its code.

@@ -8,6 +8,7 @@ import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/auth_api.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:sinai/api/live_socket.dart';
+import 'package:sinai/api/outbox.dart';
 import 'package:sinai/common/onboarding_prefs.dart';
 import 'package:sinai/features/chat/draft_store.dart';
 import 'package:sinai/features/update/app_update.dart';
@@ -60,6 +61,8 @@ void main() async {
     ..followAppLifecycle();
 
   await DraftStore.instance.load();
+  // What the user did offline last time goes out as soon as it can.
+  if (hasAccount) await Outbox.instance.load();
   await ThemeStore.instance.load();
 
   final signedIn = hasAccount && await OnboardingPrefs.isSignedIn();
