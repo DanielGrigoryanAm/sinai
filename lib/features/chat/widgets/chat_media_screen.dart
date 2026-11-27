@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/features/chat/widgets/image_viewer_screen.dart';
 import 'package:sinai/features/chat/widgets/voice_player.dart';
@@ -52,14 +53,9 @@ class _ChatMediaScreenState extends State<ChatMediaScreen> {
       length: 2,
       child: Scaffold(
         backgroundColor: colors.backgroundPrimary,
-        appBar: AppBar(
-          backgroundColor: colors.backgroundPrimary,
-          surfaceTintColor: Colors.transparent,
-          leading: IconButton(
-            icon: const Icon(AppIcons.arrowLeft),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: Text('Media', style: context.textTheme.titleLarge),
+        appBar: CustomAppBar(
+          title: 'Media',
+          showBackButton: true,
           bottom: TabBar(
             labelColor: colors.textPrimary,
             unselectedLabelColor: colors.textSecondary,

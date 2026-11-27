@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sinai/common/custom_app_bar.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -13,19 +14,9 @@ class AppColorsScreen extends StatelessWidget {
     final colors = context.colorTheme;
     return Scaffold(
       backgroundColor: colors.backgroundPrimary,
-      appBar: AppBar(
-        backgroundColor: colors.backgroundPrimary,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: Icon(AppIcons.arrowLeft, color: colors.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'App colors',
-          style: context.textTheme.titleLarge.copyWith(
-            color: colors.textPrimary,
-          ),
-        ),
+      appBar: CustomAppBar(
+        title: 'App colors',
+        showBackButton: true,
         actions: [
           TextButton(
             onPressed: ThemeStore.instance.reset,
