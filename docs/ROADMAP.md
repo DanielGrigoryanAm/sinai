@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — Profile tidied into one style: photo and name on top, then sections (label, white rounded card with 52 px rows, caption) for the code (tap copies), the name (field with an inline Save), Account (Google row with a check) and a red Sign out row; new `common/settings_section.dart` (`SettingsSection`, `SettingsRow`), used by `profile_screen.dart` and `AccountSection` (`account_options.dart`). Not checked on a device.
 - 2026-11-27 — Messages: "Search chats..." field is now the shared `RoundField` (same look and height as message search, clear button) instead of its own `_SearchField` (`chats_screen.dart`). Not checked on a device.
 - 2026-11-27 — One back button everywhere: `CustomAppBar(showBackButton: true)` now draws the chat's edge tab (title and actions lined up with it, optional `bottom` for tabs), so New chat, Create chat, Profile, Phone get it; App colors and Media moved from plain `AppBar` to it. The photo viewer's close and the crop editor's Cancel stay (`custom_app_bar.dart`, `app_colors_screen.dart`, `chat_media_screen.dart`). Not checked on a device.
 - 2026-11-27 — New message screen gets message search's top: the chat's back tab and the rounded field (with Paste while empty), now shared as `EdgeFieldBar` / `RoundField` in `common/round_field.dart` (`find_person_screen.dart`, `message_search_screen.dart`). Not checked on a device.

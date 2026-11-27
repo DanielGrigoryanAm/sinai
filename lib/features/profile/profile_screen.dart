@@ -12,8 +12,7 @@ import 'package:sinai/features/account/account_options.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:sinai/common/custom_app_bar.dart';
-import 'package:sinai/common/custom_button.dart';
-import 'package:sinai/common/custom_text_field.dart';
+import 'package:sinai/common/settings_section.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
@@ -195,7 +194,7 @@ class _ProfileViewState extends State<_ProfileView> {
           body: SafeArea(
             // Scrollable so the form stays reachable above the keyboard.
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(30, 24, 30, 30),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -207,70 +206,97 @@ class _ProfileViewState extends State<_ProfileView> {
                       onTap: _uploadingPhoto ? null : _onPhotoTap,
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 12),
                   Text(
-                    'YOUR CODE',
-                    style: text.bodySmall.copyWith(
-                      fontSize: 12,
-                      letterSpacing: 0.6,
-                      color: colors.textSecondary,
+                    _savedName.isEmpty ? 'No name yet' : _savedName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.titleLarge.copyWith(
+                      color: _savedName.isEmpty ? colors.textSecondary : null,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  _CodeCard(code: _code),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Others write to you by this code. Share it with '
-                    'people you want to talk to.',
-                    style: text.bodySmall.copyWith(color: colors.textSecondary),
+                  const SizedBox(height: 28),
+                  SettingsSection(
+                    label: 'Your code',
+                    rows: [_CodeRow(code: _code)],
+                    caption: 'Others write to you by this code. Share it '
+                        'with people you want to talk to.',
                   ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'YOUR NAME',
-                    style: text.bodySmall.copyWith(
-                      fontSize: 12,
-                      letterSpacing: 0.6,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  CustomTextField(
-                    controller: _nameController,
-                    hintText: 'Enter your name',
-                    onChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Others see this name next to your new messages. '
-                    'Messages you already sent keep the old name.',
-                    style: text.bodySmall.copyWith(color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 32),
-                  CustomButton.primary(
-                    text: 'Save',
-                    isLoading: _saving,
-                    onTap: canSave ? () => _save(name) : null,
+                  const SizedBox(height: 24),
+                  SettingsSection(
+                    label: 'Your name',
+                    rows: [
+                      SettingsRow(
+                        trailing: _saving
+                            ? SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colors.secondary,
+                                ),
+                              )
+                            : canSave
+                                ? GestureDetector(
+                                    onTap: () => _save(name),
+                                    child: Text(
+                                      'Save',
+                                      style: text.bodyLarge.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: colors.secondary,
+                                      ),
+                                    ),
+                                  )
+                                : null,
+                        child: TextField(
+                          controller: _nameController,
+                          cursorColor: colors.secondary,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.done,
+                          style: text.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                          onChanged: (_) => setState(() {}),
+                          onSubmitted: (_) {
+                            if (canSave) _save(name);
+                          },
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: 'Enter your name',
+                            hintStyle: text.bodyLarge
+                                .copyWith(color: colors.textSecondary),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                    ],
+                    caption: 'Others see this name next to your new '
+                        'messages. Messages you already sent keep the old '
+                        'name.',
                   ),
                   if (AccountSection.enabled) ...[
-                    const SizedBox(height: 40),
-                    Text(
-                      'ACCOUNT',
-                      style: text.bodySmall.copyWith(
-                        fontSize: 12,
-                        letterSpacing: 0.6,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 24),
                     const AccountSection(),
                   ],
                   const SizedBox(height: 24),
-                  CustomButton.outline(
-                    text: 'Sign out',
-                    leadingIcon: AppIcons.logout,
-                    color: const Color(0xFFDC2626),
-                    isLoading: _signingOut,
-                    onTap: _signingOut ? null : _signOut,
+                  SettingsSection(
+                    rows: [
+                      SettingsRow(
+                        leading: const Icon(AppIcons.logout),
+                        color: const Color(0xFFDC2626),
+                        onTap: _signingOut ? null : _signOut,
+                        trailing: _signingOut
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              )
+                            : null,
+                        child: const Text('Sign out'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -282,18 +308,18 @@ class _ProfileViewState extends State<_ProfileView> {
   }
 }
 
-/// The user's code in large letters, copied on tap.
-class _CodeCard extends StatefulWidget {
-  const _CodeCard({required this.code});
+/// The user's code, spaced out; a tap copies it.
+class _CodeRow extends StatefulWidget {
+  const _CodeRow({required this.code});
 
   /// Null while it loads.
   final String? code;
 
   @override
-  State<_CodeCard> createState() => _CodeCardState();
+  State<_CodeRow> createState() => _CodeRowState();
 }
 
-class _CodeCardState extends State<_CodeCard> {
+class _CodeRowState extends State<_CodeRow> {
   bool _copied = false;
 
   Future<void> _copy(String code) async {
@@ -308,40 +334,21 @@ class _CodeCardState extends State<_CodeCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final text = context.textTheme;
     final code = widget.code;
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: code == null ? null : () => _copy(code),
-        child: Container(
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: colors.border),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  code ?? '········',
-                  style: text.titleLarge.copyWith(
-                    fontSize: 22,
-                    letterSpacing: 3,
-                    color: code == null ? colors.textSecondary : null,
-                  ),
-                ),
-              ),
-              Icon(
-                _copied ? AppIcons.check : AppIcons.copy,
-                size: 20,
-                color: colors.secondary,
-              ),
-            ],
-          ),
+    return SettingsRow(
+      onTap: code == null ? null : () => _copy(code),
+      trailing: Icon(
+        _copied ? AppIcons.check : AppIcons.copy,
+        size: 18,
+        color: colors.secondary,
+      ),
+      child: Text(
+        code ?? '········',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 2.5,
+          color: code == null ? colors.textSecondary : null,
         ),
       ),
     );

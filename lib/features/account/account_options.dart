@@ -4,9 +4,9 @@ import 'package:sinai/auth/account_link.dart';
 import 'package:sinai/auth/repository/auth_repository.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'package:sinai/common/feature_flags.dart';
+import 'package:sinai/common/settings_section.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:sinai/router/app_router.dart';
-import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 
 /// Onboarding: signs in with a Google account. The first time it makes a
@@ -43,106 +43,35 @@ class _AccountSectionState extends State<AccountSection> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colorTheme;
-    final text = context.textTheme;
     final google = _auth.googleEmail;
     final phone = _auth.phoneNumber;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'You sign in with this. Use it after a reinstall or on a new '
-            'phone to get your name and chats back. Only you can see it.',
-            style: text.bodySmall.copyWith(color: colors.textSecondary),
+    return SettingsSection(
+      label: 'Account',
+      caption: 'You sign in with this. Use it after a reinstall or on a new '
+          'phone to get your name and chats back. Only you can see it.',
+      rows: [
+        if (FeatureFlags.googleSignIn)
+          SettingsRow(
+            leading: const GoogleMark(),
+            trailing: Icon(AppIcons.check, size: 18, color: colors.secondary),
+            child: Text(google ?? 'Google'),
           ),
-          const SizedBox(height: 12),
-          if (FeatureFlags.googleSignIn)
-            _Option(
-              mark: const GoogleMark(),
-              label: google ?? 'Google',
-              added: true,
-              onTap: null,
-            ),
-          if (FeatureFlags.phoneSignIn)
-            _Option(
-              mark: Icon(AppIcons.phone, size: 20, color: colors.secondary),
-              label: phone ?? 'Add phone number',
-              added: phone != null,
-              onTap: phone != null
-                  ? null
-                  : () async {
-                      await context.router.push(PhoneRoute());
-                      if (mounted) setState(() {});
-                    },
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// One way of signing in: a white row with its mark, or a check once
-/// added.
-class _Option extends StatelessWidget {
-  const _Option({
-    required this.mark,
-    required this.label,
-    required this.onTap,
-    this.added = false,
-  });
-
-  final Widget mark;
-  final String label;
-  final VoidCallback? onTap;
-  final bool added;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colorTheme;
-    final text = context.textTheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              children: [
-                SizedBox.square(dimension: 24, child: Center(child: mark)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodyLarge.copyWith(
-                      fontWeight: added ? FontWeight.w400 : FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (added)
-                  Icon(AppIcons.check, size: 18, color: colors.secondary),
-              ],
-            ),
+        if (FeatureFlags.phoneSignIn)
+          SettingsRow(
+            leading: const Icon(AppIcons.phone),
+            trailing: phone == null
+                ? null
+                : Icon(AppIcons.check, size: 18, color: colors.secondary),
+            onTap: phone != null
+                ? null
+                : () async {
+                    await context.router.push(PhoneRoute());
+                    if (mounted) setState(() {});
+                  },
+            child: Text(phone ?? 'Add phone number'),
           ),
-        ),
-      ),
+      ],
     );
   }
 }
