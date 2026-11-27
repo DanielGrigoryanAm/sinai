@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — Other people's profiles: `PersonProfileScreen` (photo, tap for full screen; name; online / last seen, live from the chat). Opens from a member row in the chat info sheet, and in a direct chat from the other person's photo at the top of the sheet; member rows now show photos (`person_profile_screen.dart`, `chat_info_sheet.dart`). Not checked on a device.
 - 2026-11-27 — Message field: the gold PNG photo/mic/send pictures replaced by Flaticon UIcons Regular rounded (`picture`, `microphone`, `paper-plane-top`) in the accent colour; the three glyphs were added to `UiconsRegular.ttf` from `@flaticon/flaticon-uicons` 3.3.1 (old glyphs unchanged), `assets/icons/` removed (`app_icons.dart` `photo`/`microphone`/`send`, `message_field.dart`, `pubspec.yaml`). Not checked on a device. Note: the bundled Uicons fonts are subsets of an older release with other codepoints; new glyphs keep the 3.3.1 codepoints.
 - 2026-11-27 — Profile tidied into one style: photo and name on top, then sections (label, white rounded card with 52 px rows, caption) for the code (tap copies), the name (field with an inline Save), Account (Google row with a check) and a red Sign out row; new `common/settings_section.dart` (`SettingsSection`, `SettingsRow`), used by `profile_screen.dart` and `AccountSection` (`account_options.dart`). Not checked on a device.
 - 2026-11-27 — Messages: "Search chats..." field is now the shared `RoundField` (same look and height as message search, clear button) instead of its own `_SearchField` (`chats_screen.dart`). Not checked on a device.
@@ -73,6 +74,9 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 
 ## Planned / ideas
 
+- Profiles, next: more than photo and name (bio, a Message button for
+  group members, shared media), maybe opened straight from a direct
+  chat's header.
 - Direct chats, next: what "Delete chat" means there (now the one who
   opened it deletes it for both, the other only leaves).
 - Turn off the Anonymous provider in the Firebase console after the

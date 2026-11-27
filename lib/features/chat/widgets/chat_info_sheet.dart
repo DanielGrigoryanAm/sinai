@@ -10,6 +10,7 @@ import 'package:sinai/api/current_user.dart';
 import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chat/chat_status.dart';
+import 'package:sinai/features/profile/person_profile_screen.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
 import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/common/app_icons.dart';
@@ -178,6 +179,22 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
     }
   }
 
+  /// A direct chat's other person.
+  void _openPeer(
+    List<String> memberIds,
+    Map<String, Map<String, dynamic>>? info,
+  ) {
+    final peer = memberIds.where((id) => id != _me).firstOrNull;
+    if (peer == null) return;
+    PersonProfileScreen.open(
+      context,
+      chatCode: widget.chatCode,
+      userId: peer,
+      name: info?[peer]?['name'] as String?,
+      photoUrl: info?[peer]?['photoUrl'] as String?,
+    );
+  }
+
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.chatCode));
     if (!mounted) return;
@@ -244,9 +261,14 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                     const SizedBox(height: 20),
                     Center(
                       child: GestureDetector(
+                        // The owner changes a group's photo; in a direct
+                        // chat it is the other person's, opening their
+                        // profile.
                         onTap: canEdit && !_uploadingPhoto
                             ? () => _changePhoto(photoUrl)
-                            : null,
+                            : direct
+                                ? () => _openPeer(memberIds, memberInfo)
+                                : null,
                         child: Stack(
                           children: [
                             ChatAvatar(
@@ -439,6 +461,16 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                           onRemove: isOwner && uid != _me
                               ? (name) => _removeMember(uid, name)
                               : null,
+                          onTap: uid == _me
+                              ? null
+                              : () => PersonProfileScreen.open(
+                                    context,
+                                    chatCode: widget.chatCode,
+                                    userId: uid,
+                                    name: memberInfo?[uid]?['name'] as String?,
+                                    photoUrl: memberInfo?[uid]?['photoUrl']
+                                        as String?,
+                                  ),
                         ),
                     ],
                     const SizedBox(height: 16),
@@ -515,7 +547,11 @@ class _MemberRow extends StatelessWidget {
     required this.isOwner,
     required this.onRemove,
     this.info,
+    this.onTap,
   });
+
+  /// Opens the member's profile; null for the user themself.
+  final VoidCallback? onTap;
 
   /// Name and online status, as the chat brings them.
   final Map<String, dynamic>? info;
@@ -555,83 +591,91 @@ class _MemberRow extends StatelessWidget {
         : lastSeen == null
             ? null
             : ChatStatusController.lastSeenText(lastSeen);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Stack(
-            children: [
-              ChatAvatar(title: name, size: 40),
-              if (online && !isMe)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF22C55E),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colors.backgroundSecondary,
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Stack(
               children: [
-                Text(
-                  isMe ? '$name (you)' : name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: text.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                ChatAvatar(
+                  title: name,
+                  photoUrl: (info ?? const {})['photoUrl'] as String?,
+                  size: 40,
                 ),
-                if (status != null && !isMe)
-                  Text(
-                    status,
-                    style: text.bodySmall.copyWith(
-                      fontSize: 12,
-                      color: online ? colors.secondary : colors.textSecondary,
+                if (online && !isMe)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: colors.backgroundSecondary,
+                          width: 2,
+                        ),
+                      ),
                     ),
                   ),
               ],
             ),
-          ),
-          if (isOwner)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: colors.secondary.withAlpha(40),
-                borderRadius: BorderRadius.circular(10),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isMe ? '$name (you)' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: text.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (status != null && !isMe)
+                    Text(
+                      status,
+                      style: text.bodySmall.copyWith(
+                        fontSize: 12,
+                        color: online ? colors.secondary : colors.textSecondary,
+                      ),
+                    ),
+                ],
               ),
-              child: Text(
-                'owner',
-                style: text.bodySmall.copyWith(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.secondary,
+            ),
+            if (isOwner)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colors.secondary.withAlpha(40),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'owner',
+                  style: text.bodySmall.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: colors.secondary,
+                  ),
                 ),
               ),
-            ),
-          if (onRemove != null)
-            IconButton(
-              tooltip: 'Remove $name',
-              icon: Icon(
-                AppIcons.userMinus,
-                size: 20,
-                color: colors.textSecondary,
+            if (onRemove != null)
+              IconButton(
+                tooltip: 'Remove $name',
+                icon: Icon(
+                  AppIcons.userMinus,
+                  size: 20,
+                  color: colors.textSecondary,
+                ),
+                onPressed: () => onRemove!(name),
               ),
-              onPressed: () => onRemove!(name),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
