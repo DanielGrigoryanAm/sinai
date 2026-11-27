@@ -14,6 +14,7 @@ class ChatSummary extends Equatable {
     this.typingName,
     this.unreadCount,
     this.photoUrl,
+    this.direct = false,
   });
 
   final String code;
@@ -42,8 +43,12 @@ class ChatSummary extends Equatable {
   /// Messages after the user's last visit; null while still counting.
   final int? unreadCount;
 
-  /// Chat photo set by the owner; null shows the first letter instead.
+  /// Chat photo set by the owner (for a direct chat, the other person's);
+  /// null shows the first letter instead.
   final String? photoUrl;
+
+  /// A one-to-one chat; [name] is then the other person's name.
+  final bool direct;
 
   String get title => name ?? code;
 
@@ -60,5 +65,6 @@ class ChatSummary extends Equatable {
         typingName,
         unreadCount,
         photoUrl,
+        direct,
       ];
 }

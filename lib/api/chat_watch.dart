@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/chats_api.dart';
+import 'package:sinai/api/current_user.dart';
 import 'package:sinai/api/live_socket.dart';
 
 /// A chat as the info sheet and the chat header show it, kept current by
@@ -65,8 +66,11 @@ Map<String, dynamic> _shape(Map<String, dynamic> raw) {
       'lastSeen': DateTime.tryParse('${m['lastSeen']}')?.toLocal(),
     };
   }
+  final direct = raw['direct'] == true;
   return {
-    'name': raw['name'],
+    // A direct chat has no name of its own: it is the other person's.
+    'name': direct ? _peerName(members) : raw['name'],
+    'direct': direct,
     'ownerId': raw['ownerId'],
     'photoUrl': ChatsApi.fileUrl(raw['photoUrl']),
     'game': raw['game'],
@@ -78,6 +82,15 @@ Map<String, dynamic> _shape(Map<String, dynamic> raw) {
     'participantIds': members.keys.toList(),
     'members': members,
   };
+}
+
+/// The other person's name in a direct chat; null when they left.
+String? _peerName(Map<String, Map<String, dynamic>> members) {
+  final me = currentUserId();
+  for (final entry in members.entries) {
+    if (entry.key != me) return entry.value['name'] as String?;
+  }
+  return null;
 }
 
 /// Applies a member going online or offline.

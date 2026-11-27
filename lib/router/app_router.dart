@@ -7,6 +7,7 @@ import 'package:sinai/features/phone/phone_screen.dart';
 import 'package:sinai/features/profile/profile_screen.dart';
 import 'package:sinai/features/start_chat/chat_ready_screen.dart';
 import 'package:sinai/features/start_chat/create_chat_screen.dart';
+import 'package:sinai/features/start_chat/find_person_screen.dart';
 import 'package:sinai/features/start_chat/start_chat_screen.dart';
 
 part 'app_router.gr.dart';
@@ -33,6 +34,9 @@ class AppRouter extends RootStackRouter {
         ),
         AutoRoute(
           page: CreateChatRoute.page,
+        ),
+        AutoRoute(
+          page: FindPersonRoute.page,
         ),
         AutoRoute(
           page: ChatReadyRoute.page,

@@ -6,6 +6,28 @@ import 'package:sinai/api/api_config.dart';
 import 'package:sinai/features/chat/models/chat_message_model.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
 
+/// Someone found by their personal code.
+class Person {
+  const Person({
+    required this.id,
+    required this.name,
+    required this.code,
+    this.photoUrl,
+  });
+
+  factory Person.fromJson(Map<String, dynamic> json) => Person(
+        id: json['id'] as String,
+        name: ((json['name'] as String?) ?? '').trim(),
+        code: json['code'] as String,
+        photoUrl: ChatsApi.fileUrl(json['photoUrl']),
+      );
+
+  final String id;
+  final String name;
+  final String code;
+  final String? photoUrl;
+}
+
 /// Chats and messages on the backend, turned into the app's models.
 class ChatsApi {
   ChatsApi([ApiClient? client]) : _api = client ?? ApiClient.instance;
@@ -33,6 +55,20 @@ class ChatsApi {
   }
 
   Future<void> join(String code) => _api.post('${_chat(code)}/join');
+
+  /// The person with this personal code; throws [ApiException] 404 when
+  /// there is no one.
+  Future<Person> person(String code) async => Person.fromJson(await _api
+      .get('/v1/users/${Uri.encodeComponent(code.trim().toUpperCase())}')
+      as Map<String, dynamic>);
+
+  /// Opens the one-to-one chat with the person with this personal code
+  /// (making it the first time); returns its code.
+  Future<String> openDirect(String personCode) async {
+    final chat = await _api.post('/v1/chats/direct', {'code': personCode})
+        as Map<String, dynamic>;
+    return chat['code'] as String;
+  }
 
   /// The chat with its members and their read marks.
   Future<Map<String, dynamic>> chat(String code) async =>
@@ -208,14 +244,19 @@ class ChatsApi {
 
   static ChatSummary _summary(Map<String, dynamic> c, String? me) {
     final last = c['lastMessage'] as Map<String, dynamic>?;
-    final name = ((c['name'] as String?) ?? '').trim();
+    final direct = c['direct'] == true;
+    final peer = c['peer'] as Map<String, dynamic>?;
+    // A direct chat is called after the other person.
+    final rawName = direct ? (peer?['name']) : c['name'];
+    final name = ((rawName as String?) ?? '').trim();
     final unread = (c['unread'] as num?)?.toInt() ?? 0;
     final lastAt = DateTime.tryParse('${last?['createdAt']}')?.toLocal();
     return ChatSummary(
       code: c['code'] as String,
       name: name.isEmpty ? null : name,
       isOwner: c['ownerId'] == me,
-      photoUrl: fileUrl(c['photoUrl']),
+      photoUrl: fileUrl(direct ? (peer?['photoUrl']) : c['photoUrl']),
+      direct: direct,
       lastMessage: last == null
           ? null
           : _preview(last['text'] as String?, last['kind'] as String?),

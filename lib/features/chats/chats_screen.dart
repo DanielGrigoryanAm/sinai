@@ -9,6 +9,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:sinai/common/chat_avatar.dart';
 import 'package:sinai/common/confirm_dialog.dart';
 import 'package:sinai/features/chats/models/chat_summary.dart';
+import 'package:sinai/features/chats/widgets/new_chat_menu.dart';
 import 'package:sinai/features/start_chat/bloc/chat_bloc.dart';
 import 'package:sinai/notifications/notification_service.dart';
 import 'package:sinai/router/app_router.dart';
@@ -24,10 +25,30 @@ class ChatsScreen extends StatefulWidget {
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends State<ChatsScreen> {
+class _ChatsScreenState extends State<ChatsScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   DateTime? _lastBackPressedAt;
   String _query = '';
+
+  /// The + menu: 0 shut, 1 open.
+  late final AnimationController _menu = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+    reverseDuration: const Duration(milliseconds: 200),
+  );
+
+  bool get _menuOpen =>
+      _menu.status == AnimationStatus.forward ||
+      _menu.status == AnimationStatus.completed;
+
+  void _toggleMenu() => _menuOpen ? _menu.reverse() : _menu.forward();
+
+  /// Shuts the menu and opens [route].
+  void _openFromMenu(PageRouteInfo route) {
+    _menu.reverse();
+    context.router.push(route);
+  }
 
   @override
   void initState() {
@@ -39,6 +60,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
 
   @override
   void dispose() {
+    _menu.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -88,7 +110,10 @@ class _ChatsScreenState extends State<ChatsScreen> {
         child: PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, result) {
-            if (!didPop) {
+            if (didPop) return;
+            if (_menuOpen) {
+              _menu.reverse();
+            } else {
               _handleExitBack();
             }
           },
@@ -96,67 +121,93 @@ class _ChatsScreenState extends State<ChatsScreen> {
             onTap: () => FocusScope.of(context).unfocus(),
             child: Scaffold(
               backgroundColor: colors.backgroundPrimary,
-              body: SafeArea(
-                bottom: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Messages',
-                              style: context.textTheme.titleLarge.copyWith(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
+              body: Stack(
+                children: [
+                  SafeArea(
+                    bottom: false,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Messages',
+                                  style: context.textTheme.titleLarge.copyWith(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
                               ),
-                            ),
+                              Material(
+                                color: colors.backgroundSecondary,
+                                shape: const CircleBorder(),
+                                elevation: 2,
+                                shadowColor: const Color(0x33000000),
+                                clipBehavior: Clip.antiAlias,
+                                child: IconButton(
+                                  tooltip: 'Profile',
+                                  icon: const ProfileIcon(),
+                                  onPressed: () =>
+                                      context.router.push(const ProfileRoute()),
+                                ),
+                              ),
+                            ],
                           ),
-                          Material(
-                            color: colors.backgroundSecondary,
-                            shape: const CircleBorder(),
-                            elevation: 2,
-                            shadowColor: const Color(0x33000000),
-                            clipBehavior: Clip.antiAlias,
-                            child: IconButton(
-                              tooltip: 'Profile',
-                              icon: const ProfileIcon(),
-                              onPressed: () =>
-                                  context.router.push(const ProfileRoute()),
-                            ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: _SearchField(
+                            controller: _searchController,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
                           ),
-                        ],
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: BlocBuilder<ChatBloc, ChatState>(
+                            builder: _buildBody,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Dims the list while the + menu is open; a tap shuts it.
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _menu,
+                      builder: (context, _) => IgnorePointer(
+                        ignoring: _menu.value == 0,
+                        child: GestureDetector(
+                          onTap: _menu.reverse,
+                          child: ColoredBox(
+                            color: colors.backgroundPrimary.withValues(
+                                alpha: 0.85 * _menu.value.clamp(0.0, 1.0)),
+                          ),
+                        ),
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _SearchField(
-                        controller: _searchController,
-                        onChanged: (value) => setState(() => _query = value),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: BlocBuilder<ChatBloc, ChatState>(
-                        builder: _buildBody,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              floatingActionButton: SizedBox.square(
-                dimension: 56,
-                child: FloatingActionButton(
-                  onPressed: () => context.router.push(const StartChatRoute()),
-                  backgroundColor: colors.secondary,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  shape: const CircleBorder(),
-                  child: const PlusIcon(size: 26, strokeWidth: 2.2),
-                ),
+              floatingActionButton: NewChatMenu(
+                animation: _menu,
+                onToggle: _toggleMenu,
+                actions: [
+                  NewChatAction(
+                    label: 'Create or join a chat',
+                    icon: AppIcons.chat,
+                    onTap: () => _openFromMenu(const StartChatRoute()),
+                  ),
+                  NewChatAction(
+                    label: 'Message someone',
+                    icon: AppIcons.user,
+                    onTap: () => _openFromMenu(const FindPersonRoute()),
+                  ),
+                ],
               ),
             ),
           ),
@@ -179,7 +230,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
     if (state.chats.isEmpty) {
       return _EmptyState(
         title: 'No chats yet',
-        subtitle: 'Tap + to create or join a chat',
+        subtitle: 'Tap + to message someone or join a chat',
         actionLabel: 'Refresh',
         onAction: refresh,
       );

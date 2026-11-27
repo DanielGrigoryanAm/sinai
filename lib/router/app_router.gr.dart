@@ -163,6 +163,22 @@ class CreateChatRoute extends PageRouteInfo<void> {
 }
 
 /// generated route for
+/// [FindPersonScreen]
+class FindPersonRoute extends PageRouteInfo<void> {
+  const FindPersonRoute({List<PageRouteInfo>? children})
+      : super(FindPersonRoute.name, initialChildren: children);
+
+  static const String name = 'FindPersonRoute';
+
+  static PageInfo page = PageInfo(
+    name,
+    builder: (data) {
+      return const FindPersonScreen();
+    },
+  );
+}
+
+/// generated route for
 /// [OnboardingScreen]
 class OnboardingRoute extends PageRouteInfo<void> {
   const OnboardingRoute({List<PageRouteInfo>? children})

@@ -226,6 +226,10 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
               final chatName = (data?['name'] as String?)?.trim() ?? '';
               final ownerId = data?['ownerId'] as String?;
               final isOwner = data != null && ownerId == _me;
+              // A direct chat is named after the other person and has no
+              // code to share: nothing to rename, nothing to copy.
+              final direct = data?['direct'] == true;
+              final canEdit = isOwner && !direct;
               final photoUrl = data?['photoUrl'] as String?;
               // Owner first, then the user, then everyone else.
               memberIds.sort((a, b) {
@@ -252,7 +256,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                     const SizedBox(height: 20),
                     Center(
                       child: GestureDetector(
-                        onTap: isOwner && !_uploadingPhoto
+                        onTap: canEdit && !_uploadingPhoto
                             ? () => _changePhoto(photoUrl)
                             : null,
                         child: Stack(
@@ -283,7 +287,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                                 ),
                               ),
                             // Only the owner can change the photo.
-                            if (isOwner && !_uploadingPhoto)
+                            if (canEdit && !_uploadingPhoto)
                               Positioned(
                                 right: 0,
                                 bottom: 0,
@@ -311,7 +315,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                     ),
                     const SizedBox(height: 14),
                     GestureDetector(
-                      onTap: isOwner ? () => _rename(chatName) : null,
+                      onTap: canEdit ? () => _rename(chatName) : null,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -322,7 +326,7 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                               style: text.titleLarge,
                             ),
                           ),
-                          if (isOwner) ...[
+                          if (canEdit) ...[
                             const SizedBox(width: 6),
                             Icon(
                               AppIcons.edit,
@@ -335,47 +339,49 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-                      decoration: BoxDecoration(
-                        color: colors.backgroundPrimary,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'CHAT CODE',
-                                  style: text.bodySmall.copyWith(
-                                    fontSize: 12,
-                                    letterSpacing: 0.6,
-                                    color: colors.textSecondary,
+                    if (!direct) ...[
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                        decoration: BoxDecoration(
+                          color: colors.backgroundPrimary,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'CHAT CODE',
+                                    style: text.bodySmall.copyWith(
+                                      fontSize: 12,
+                                      letterSpacing: 0.6,
+                                      color: colors.textSecondary,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 2),
-                                SelectableText(
-                                  widget.chatCode,
-                                  style: text.titleSmall,
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  SelectableText(
+                                    widget.chatCode,
+                                    style: text.titleSmall,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: 'Copy code',
-                            onPressed: _copyCode,
-                            icon: Icon(
-                              _copied ? AppIcons.check : AppIcons.copy,
-                              color: colors.textSecondary,
+                            IconButton(
+                              tooltip: 'Copy code',
+                              onPressed: _copyCode,
+                              icon: Icon(
+                                _copied ? AppIcons.check : AppIcons.copy,
+                                color: colors.textSecondary,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
                     _SheetRow(
                       icon: AppIcons.palette,
                       label: 'App colors',

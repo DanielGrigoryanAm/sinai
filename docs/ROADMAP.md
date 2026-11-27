@@ -7,6 +7,8 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-27 — backend: direct chats — migration `0006_direct_chats.sql` (`chats.direct_key`, one chat per pair), `POST /v1/chats/direct {code}`, `GET /v1/users/{code}`; chats carry `direct`, the list a `peer`; direct chats can't be joined by code (`internal/chats`, `internal/users`, smoke). Not deployed; migration and smoke not run (local Docker broken).
+- 2026-11-27 — App: + on Messages lifts two buttons, "Create or join a chat" (old screen) and "Message someone" → `FindPersonScreen`: type or paste a code, the person shows as a chat-row card with "Message", which opens the direct chat. Direct chats show the other person's name and photo; their info sheet hides the chat code and renaming (`new_chat_menu.dart`, `find_person_screen.dart`, `chats_screen.dart`, `chats_api.dart`, `chat_watch.dart`, `chat_info_sheet.dart`). Not checked on a device.
 - 2026-11-27 — Personal code (like a username): backend migration `0005_user_codes.sql` gives every user a unique 8-character code (existing users too), returned as `code` in `/v1/me`; profile shows it under "YOUR CODE", tap copies (`users.go`, `auth_api.dart`, `profile_screen.dart`). Branch `feature/google-sign-in`, not deployed; migration and smoke not run (local Docker broken), not checked on a device.
 - 2026-11-27 — backend: no anonymous accounts — `POST /v1/auth/guest` and `users.Create` removed, `/v1/auth/firebase` refuses tokens whose `sign_in_provider` is anonymous; smoke signs in via a fake Firebase on :9098 (`FIREBASE_TEST_CERTS_URL`) (`internal/auth`, `internal/users`, `internal/config`, `cmd/smoke`). Branch `feature/google-sign-in`, not deployed; `go test` passes, smoke not run (local Docker disk I/O error).
 - 2026-11-27 — App: no anonymous accounts — a leftover anonymous Firebase user is signed out at start (push token detached, backend session ended) and sees onboarding; profile → Account only shows the Google account (`main.dart`, `account_options.dart`). Not checked on a device.
@@ -55,9 +57,9 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 
 ## Planned / ideas
 
-- Next: one-to-one chats. You add someone by their personal code; the chat shows
-  the other person's name (and they see yours) instead of a chat name.
-  Group chats by code stay as a secondary kind.
+- Direct chats, next: what "Delete chat" means there (now the one who
+  opened it deletes it for both, the other only leaves); avatars for
+  people (the card and rows use the first letter).
 - Turn off the Anonymous provider in the Firebase console after the
   release (Daniel).
 - Telegram sign-in: bot + Login Widget, verified by the Go backend, which

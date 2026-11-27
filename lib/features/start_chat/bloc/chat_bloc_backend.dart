@@ -133,6 +133,7 @@ mixin _BackendChats on Bloc<ChatEvent, ChatState> {
                 typingName: _typingInList[chat.code],
                 unreadCount: chat.unreadCount,
                 photoUrl: chat.photoUrl,
+                direct: chat.direct,
               ),
     ]));
   }
