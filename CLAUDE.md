@@ -61,6 +61,12 @@ next" or before a bigger feature). Backend: `../sinai-go` (its own
 
 ## Rules and gotchas
 
+- **After every finished task**, add one line to "Recent changes" at the
+  top of `docs/ROADMAP.md`: date, what changed, files, and what is not
+  verified yet. Keep only the last ~15 lines there; move older ones into
+  "Done" as a short summary. Update "Planned" and "Decisions" when they
+  change. Include the ROADMAP edit in the task's commit.
+
 - Commit only when asked; branch `development`; end commit messages with
   the Co-Authored-By line. Push only when asked.
 - Don't build/run the simulator unless asked; `flutter analyze` is enough.

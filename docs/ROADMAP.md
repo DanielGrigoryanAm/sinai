@@ -3,6 +3,19 @@
 Keep this short: what is done, what is planned, what was decided and why.
 Update it when a feature lands or a plan changes.
 
+## Recent changes
+
+Newest first, one line per task (see the rule in `CLAUDE.md`).
+
+- 2026-11-27 — CLAUDE.md rule: log every finished task here.
+- 2026-11-27 — CLAUDE.md, docs/ROADMAP.md, sinai-go/CLAUDE.md written.
+- 2026-11-27 — Colour emoji font for messages and reactions
+  (`common/emoji_text.dart`); red heart not yet checked on Android.
+- 2026-11-27 — Chess pieces kept in release builds (`chess_game.dart`);
+  not yet checked on the phone.
+- 2026-11-26 — Google sign-in (`features/account/`, `auth/`); full sign-in
+  not yet tried on a device.
+
 ## Done
 
 - Moved from Firebase (Firestore) to the own Go backend (`../sinai-go`):
