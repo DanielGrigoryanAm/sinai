@@ -440,7 +440,9 @@ class _ChatInfoSheetState extends State<ChatInfoSheet> {
                         ),
                       ),
                     ),
-                    if (memberIds.isNotEmpty) ...[
+                    // A direct chat is two people: its photo leads to the
+                    // other one's profile instead.
+                    if (memberIds.isNotEmpty && !direct) ...[
                       const SizedBox(height: 24),
                       Text(
                         'MEMBERS · ${memberIds.length}',
