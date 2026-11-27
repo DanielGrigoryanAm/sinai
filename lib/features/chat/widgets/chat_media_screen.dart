@@ -215,11 +215,7 @@ class _VoiceRow extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : Icon(
-                      isPlaying ? AppIcons.pause : AppIcons.play,
-                      size: 18,
-                      color: Colors.white,
-                    ),
+                  : PlayPauseIcon(playing: isPlaying, color: Colors.white),
             ),
           ),
           title: Text(

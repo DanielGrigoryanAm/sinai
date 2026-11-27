@@ -1015,10 +1015,9 @@ class _VoiceBubble extends StatelessWidget {
                                 color: Colors.white,
                               ),
                             )
-                          : Icon(
-                              isPlaying ? AppIcons.pause : AppIcons.play,
+                          : PlayPauseIcon(
+                              playing: isPlaying,
                               color: Colors.white,
-                              size: 18,
                               semanticLabel: isPlaying ? 'Pause' : 'Play',
                             ),
                     ),

@@ -43,3 +43,34 @@ abstract final class AppIcons {
   static const checkers = IconData(0xe437, fontFamily: 'UiconsSolid');
   static const youtube = IconData(0xf4f9, fontFamily: 'UiconsBrands');
 }
+
+/// Play or pause icon, centred. In the font both glyphs sit at the left of
+/// their box (play 0–244 of 300, pause 0–226), so they are moved right; play
+/// a little more, so the triangle looks centred rather than measures so.
+class PlayPauseIcon extends StatelessWidget {
+  const PlayPauseIcon({
+    super.key,
+    required this.playing,
+    this.size = 18,
+    this.color,
+    this.semanticLabel,
+  });
+
+  final bool playing;
+  final double size;
+  final Color? color;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.translate(
+      offset: Offset(size * (playing ? 37 : 44) / 300, 0),
+      child: Icon(
+        playing ? AppIcons.pause : AppIcons.play,
+        size: size,
+        color: color,
+        semanticLabel: semanticLabel,
+      ),
+    );
+  }
+}

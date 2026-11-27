@@ -417,8 +417,7 @@ class _WatchPlayerState extends State<_WatchPlayer> {
           visualDensity: VisualDensity.compact,
           tooltip: playing ? 'Pause' : 'Play',
           onPressed: _togglePlay,
-          icon: Icon(playing ? AppIcons.pause : AppIcons.play,
-              size: 18, color: text),
+          icon: PlayPauseIcon(playing: playing, color: text),
         ),
         Text(_time(shown), style: TextStyle(fontSize: 12, color: text)),
         Expanded(
