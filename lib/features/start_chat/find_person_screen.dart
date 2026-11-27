@@ -7,8 +7,8 @@ import 'package:sinai/api/api_client.dart';
 import 'package:sinai/api/chats_api.dart';
 import 'package:sinai/api/current_user.dart';
 import 'package:sinai/common/chat_avatar.dart';
-import 'package:sinai/common/custom_app_bar.dart';
-import 'package:sinai/common/custom_text_field.dart';
+import 'package:sinai/common/app_icons.dart';
+import 'package:sinai/common/round_field.dart';
 import 'package:sinai/common/toast.dart';
 import 'package:sinai/router/app_router.dart';
 import 'package:sinai/theme/app_typography_extension.dart';
@@ -120,63 +120,71 @@ class _FindPersonScreenState extends State<FindPersonScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        appBar: const CustomAppBar(
-          title: 'New message',
-          showBackButton: true,
-        ),
         backgroundColor: colors.backgroundPrimary,
         body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Enter their code. They find it in their profile.',
-                style: text.bodyLarge.copyWith(color: colors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                controller: _controller,
-                hintText: 'ENTER THEIR CODE',
-                autofocus: true,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                  LengthLimitingTextInputFormatter(_codeLength),
-                  _UpperCase(),
-                ],
-                onChanged: _onChanged,
-                suffixIcon: TextButton(
-                  onPressed: _paste,
-                  child: Text(
-                    'Paste',
-                    style: text.bodyLarge.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colors.secondary,
+              // The same back tab and field as message search.
+              EdgeFieldBar(
+                field: RoundField(
+                  controller: _controller,
+                  hintText: 'Enter their code',
+                  icon: AppIcons.user,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  textInputAction: TextInputAction.done,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                    LengthLimitingTextInputFormatter(_codeLength),
+                    _UpperCase(),
+                  ],
+                  onChanged: _onChanged,
+                  emptyTrailing: TextButton(
+                    onPressed: _paste,
+                    child: Text(
+                      'Paste',
+                      style: text.bodyLarge.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.secondary,
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              if (_searching)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: CircularProgressIndicator(color: colors.secondary),
+              Expanded(
+                  child: ListView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                children: [
+                  Text(
+                    'Enter their code. They find it in their profile.',
+                    style: text.bodyLarge.copyWith(color: colors.textSecondary),
                   ),
-                )
-              else if (person != null)
-                _PersonCard(
-                  person: person,
-                  isMe: person.id == currentUserId(),
-                  busy: _opening,
-                  onMessage: () => _message(person),
-                )
-              else if (_notFound)
-                Text(
-                  'No one has this code. Check it and try again.',
-                  textAlign: TextAlign.center,
-                  style: text.bodyLarge.copyWith(color: colors.textSecondary),
-                ),
+                  const SizedBox(height: 24),
+                  if (_searching)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child:
+                            CircularProgressIndicator(color: colors.secondary),
+                      ),
+                    )
+                  else if (person != null)
+                    _PersonCard(
+                      person: person,
+                      isMe: person.id == currentUserId(),
+                      busy: _opening,
+                      onMessage: () => _message(person),
+                    )
+                  else if (_notFound)
+                    Text(
+                      'No one has this code. Check it and try again.',
+                      textAlign: TextAlign.center,
+                      style:
+                          text.bodyLarge.copyWith(color: colors.textSecondary),
+                    ),
+                ],
+              )),
             ],
           ),
         ),

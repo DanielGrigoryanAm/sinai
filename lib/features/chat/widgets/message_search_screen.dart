@@ -4,7 +4,7 @@ import 'package:sinai/theme/color_theme.dart';
 import 'package:sinai/common/app_icons.dart';
 import 'dart:async';
 import 'package:sinai/api/chats_api.dart';
-import 'package:sinai/features/chat/widgets/edge_tab.dart';
+import 'package:sinai/common/round_field.dart';
 
 /// Searches a chat's messages by text. Pops with the id of the tapped
 /// message, so the chat can scroll to it.
@@ -83,81 +83,20 @@ class _MessageSearchScreenState extends State<MessageSearchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 8),
-              child: Row(
-                // The field lines up with the tab's body, under its curve.
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  // The same back tab as in the chat.
-                  EdgeTab(
-                    side: EdgeSide.left,
-                    icon: AppIcons.arrowLeft,
-                    tooltip: 'Back',
-                    onTap: () => Navigator.of(context).maybePop(),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: _field(context)),
-                  const SizedBox(width: 16),
-                ],
+            EdgeFieldBar(
+              field: RoundField(
+                controller: _query,
+                hintText: 'Search messages',
+                autofocus: true,
+                onChanged: (_) {
+                  setState(() {});
+                  _onQueryChanged();
+                },
               ),
             ),
             Expanded(child: _results(context)),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _field(BuildContext context) {
-    final colors = context.colorTheme;
-    return Container(
-      height: EdgeTab.tabHeight,
-      decoration: BoxDecoration(
-        color: colors.backgroundSecondary,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const SizedBox(width: 14),
-          Icon(AppIcons.search, size: 18, color: colors.textSecondary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _query,
-              autofocus: true,
-              cursorColor: colors.secondary,
-              textInputAction: TextInputAction.search,
-              style: context.textTheme.bodyLarge,
-              onChanged: (_) {
-                setState(() {});
-                _onQueryChanged();
-              },
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: 'Search messages',
-                hintStyle: context.textTheme.bodyLarge
-                    .copyWith(color: colors.textSecondary),
-                border: InputBorder.none,
-              ),
-            ),
-          ),
-          if (_query.text.isNotEmpty)
-            IconButton(
-              tooltip: 'Clear',
-              icon: Icon(AppIcons.close, size: 18, color: colors.textSecondary),
-              onPressed: () => setState(_query.clear),
-            )
-          else
-            const SizedBox(width: 14),
-        ],
       ),
     );
   }
