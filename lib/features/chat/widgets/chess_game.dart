@@ -321,19 +321,20 @@ class _Piece extends StatelessWidget {
   final ch.Piece piece;
   final double size;
 
-  // Flaticon UIcons solid rounded, one glyph per piece.
+  // Flaticon UIcons solid rounded, one glyph per piece. Kept as IconData:
+  // release builds strip from icon fonts every glyph no IconData names.
   static const _glyphs = {
-    'k': 0xe3e8,
-    'q': 0xe3ef,
-    'r': 0xe3f1,
-    'b': 0xe3e4,
-    'n': 0xe3ea,
-    'p': 0xe3ec,
+    'k': IconData(0xe3e8, fontFamily: 'UiconsSolid'),
+    'q': IconData(0xe3ef, fontFamily: 'UiconsSolid'),
+    'r': IconData(0xe3f1, fontFamily: 'UiconsSolid'),
+    'b': IconData(0xe3e4, fontFamily: 'UiconsSolid'),
+    'n': IconData(0xe3ea, fontFamily: 'UiconsSolid'),
+    'p': IconData(0xe3ec, fontFamily: 'UiconsSolid'),
   };
 
   @override
   Widget build(BuildContext context) {
-    final glyph = String.fromCharCode(_glyphs[piece.type.name]!);
+    final glyph = String.fromCharCode(_glyphs[piece.type.name]!.codePoint);
     final white = piece.color == ch.Color.WHITE;
     final style = TextStyle(
       fontFamily: 'UiconsSolid',
