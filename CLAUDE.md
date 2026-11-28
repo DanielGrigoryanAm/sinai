@@ -18,8 +18,8 @@ next" or before a bigger feature). Backend: `../sinai-go` (its own
   defaults to `https://5-222-26-206.sslip.io`, override with
   `--dart-define=API_BASE_URL=...`).
 - Firebase only for: Auth (Google only; phone is built but off; no anonymous accounts),
-  Messaging (push), Remote Config (update banner). No Firestore in the app;
-  `functions/` is a leftover from the Firebase era.
+  Messaging (push), Remote Config (update banner). Firestore, Realtime Database, Storage
+  and Cloud Functions are emptied and locked (deny-all rules).
 - Media in Cloudflare R2 via signed URLs from the backend.
 
 ## Map of `lib/`

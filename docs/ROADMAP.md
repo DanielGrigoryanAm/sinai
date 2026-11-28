@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-28 — Firebase leftovers removed: the 5 Cloud Functions deleted, Firestore (`chats`, `users`) and Realtime Database emptied, deny-all rules deployed (`firestore.rules`, `database.rules.json`, `firebase.json` without functions), `functions/` removed. Nothing in Postgres pointed at Firebase Storage; Daniel deletes its bucket in the console. Firebase keeps Auth, Messaging, Remote Config. API keys restricted to `com.example.sinai` + debug SHA-1 (Android) and `com.example.sinay` (iOS) by Daniel; sign-in and pushes not rechecked yet.
 - 2026-11-28 — Security, part 2: the server takes SSH keys only (`/etc/ssh/sshd_config.d/00-sinai-keys-only.conf`, also in `deploy/setup-server.sh`; a new login checked). The Vimeo player's web view stays on `player.vimeo.com`: a link tapped in it opens in the browser (`link_player.dart`). Not checked on a device.
 - 2026-11-28 — Security (app + backend): Redis rate limits (`internal/ratelimit`: per address 1200/min, per user 300/min, sign-in 30/min per address, messages 60/min, new chats 20/h, uploads 120/h and 2 GB/day); wrong chat/personal codes (join, direct, `/v1/users/{code}`) stopped after 20/h, 60/day per user and 60/h per address (429 + Retry-After) — guessing a chat is no longer feasible. Upload URLs sign the file's size and type (app sends `size`; storage refuses anything else); migration 0008 `uploads` + hourly sweep delete files nothing used after 48 h. Game JSON ≤4 KB, depth ≤4, `by` set by the server; watch only `{videoId, playing, position}`. WebSocket: ≤8 connections per user, ≤20 events / 10 s. Local SeaweedFS now checks signatures (`dev-s3.json`). Smoke passes (86). Not deployed; not checked against R2 or on a device. Old app builds can't upload until updated (raise `min_build` after the release).
 - 2026-11-28 — Own profile: a tap on the photo opens it full screen as uploaded (square, `ImageViewerScreen`: zoom, save); the Choose / Remove sheet is now on the camera badge only; with no photo, a tap on the letter picks one (`profile_screen.dart`). Not checked on a device.
@@ -21,11 +22,10 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 - 2026-11-27 — Message field: the gold PNG photo/mic/send pictures replaced by Flaticon UIcons Regular rounded (`picture`, `microphone`, `paper-plane-top`) in the accent colour; the three glyphs were added to `UiconsRegular.ttf` from `@flaticon/flaticon-uicons` 3.3.1 (old glyphs unchanged), `assets/icons/` removed (`app_icons.dart` `photo`/`microphone`/`send`, `message_field.dart`, `pubspec.yaml`). Not checked on a device. Note: the bundled Uicons fonts are subsets of an older release with other codepoints; new glyphs keep the 3.3.1 codepoints.
 - 2026-11-27 — Profile tidied into one style: photo and name on top, then sections (label, white rounded card with 52 px rows, caption) for the code (tap copies), the name (field with an inline Save), Account (Google row with a check) and a red Sign out row; new `common/settings_section.dart` (`SettingsSection`, `SettingsRow`), used by `profile_screen.dart` and `AccountSection` (`account_options.dart`). Not checked on a device.
 - 2026-11-27 — Messages: "Search chats..." field is now the shared `RoundField` (same look and height as message search, clear button) instead of its own `_SearchField` (`chats_screen.dart`). Not checked on a device.
-- 2026-11-27 — One back button everywhere: `CustomAppBar(showBackButton: true)` now draws the chat's edge tab (title and actions lined up with it, optional `bottom` for tabs), so New chat, Create chat, Profile, Phone get it; App colors and Media moved from plain `AppBar` to it. The photo viewer's close and the crop editor's Cancel stay (`custom_app_bar.dart`, `app_colors_screen.dart`, `chat_media_screen.dart`). Not checked on a device.
 
 ## Done
 
-- 2026-11-26…27 (from Recent changes): the New message screen's search top (`EdgeFieldBar`); Google-only sign-in, no anonymous
+- 2026-11-26…27 (from Recent changes): the New message screen's search top (`EdgeFieldBar`); one back button everywhere (`CustomAppBar` edge tab); Google-only sign-in, no anonymous
   accounts (app and backend), sign out; personal 8-character codes and
   direct chats (migrations 0005–0006); profile photos and the photo crop
   editor; offline cache and outbox with `clientId` against double
@@ -77,13 +77,15 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
   chat's header.
 - Direct chats, next: what "Delete chat" means there (now the one who
   opened it deletes it for both, the other only leaves).
-- Turn off the Anonymous provider in the Firebase console after the
-  release (Daniel).
+- Firebase console (Daniel): turn off the Anonymous provider.
 - Telegram sign-in: bot + Login Widget, verified by the Go backend, which
   issues a Firebase custom token; link it like Google.
 - Check Google sign-in end to end on both phones (configs are in place;
   Android needs the release key's SHA-1 once there is a real signing key).
 - Own release signing key for Android (now signed with the debug key).
+  Then add its SHA-1 (and Play's app signing SHA-1) to the restricted
+  Android API key in Google Cloud Credentials, or sign-in and pushes break;
+  same for new package / bundle IDs.
 - Real bundle/package IDs instead of `com.example.sinai` / `com.example.sinay`.
 - Move app plugins to AGP's built-in Kotlin once Firebase and other
   plugins support it (now `android.builtInKotlin=false`).
