@@ -248,6 +248,8 @@ class ChatsApi {
     final upload = await _api.post('${_chat(code)}/uploads', {
       'kind': kind,
       'contentType': contentType,
+      // Signed into the upload URL: storage refuses any other size.
+      'size': bytes.length,
     }) as Map;
     final response = await http.put(
       Uri.parse(upload['uploadUrl'] as String),

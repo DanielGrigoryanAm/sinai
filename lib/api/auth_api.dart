@@ -137,6 +137,8 @@ class AuthApi {
   Future<ApiUser> setPhoto(Uint8List bytes, String contentType) async {
     final upload = await _api.post('/v1/me/uploads', {
       'contentType': contentType,
+      // Signed into the upload URL: storage refuses any other size.
+      'size': bytes.length,
     }) as Map;
     final response = await http.put(
       Uri.parse(upload['uploadUrl'] as String),
