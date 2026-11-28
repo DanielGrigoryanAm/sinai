@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sinai/features/chat/widgets/watch_together.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
@@ -202,6 +203,23 @@ class _VimeoInlineState extends State<_VimeoInline> {
     return WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
+      // The player stays a Vimeo player: a link tapped in it (the title,
+      // the author) opens in the browser, so no other page can load
+      // inside the app and pass for part of it.
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (request) {
+          final uri = Uri.tryParse(request.url);
+          // Frames inside the player are the player's own business.
+          if (!request.isMainFrame ||
+              (uri != null && uri.host == 'player.vimeo.com')) {
+            return NavigationDecision.navigate;
+          }
+          if (uri != null && (uri.scheme == 'https' || uri.scheme == 'http')) {
+            launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+          return NavigationDecision.prevent;
+        },
+      ))
       ..loadRequest(Uri.parse(
           'https://player.vimeo.com/video/${widget.id}?autoplay=1&playsinline=1'));
   }();

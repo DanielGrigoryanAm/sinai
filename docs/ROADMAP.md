@@ -7,6 +7,7 @@ Update it when a feature lands or a plan changes.
 
 Newest first, one line per task (see the rule in `CLAUDE.md`).
 
+- 2026-11-28 — Security, part 2: the server takes SSH keys only (`/etc/ssh/sshd_config.d/00-sinai-keys-only.conf`, also in `deploy/setup-server.sh`; a new login checked). The Vimeo player's web view stays on `player.vimeo.com`: a link tapped in it opens in the browser (`link_player.dart`). Not checked on a device.
 - 2026-11-28 — Security (app + backend): Redis rate limits (`internal/ratelimit`: per address 1200/min, per user 300/min, sign-in 30/min per address, messages 60/min, new chats 20/h, uploads 120/h and 2 GB/day); wrong chat/personal codes (join, direct, `/v1/users/{code}`) stopped after 20/h, 60/day per user and 60/h per address (429 + Retry-After) — guessing a chat is no longer feasible. Upload URLs sign the file's size and type (app sends `size`; storage refuses anything else); migration 0008 `uploads` + hourly sweep delete files nothing used after 48 h. Game JSON ≤4 KB, depth ≤4, `by` set by the server; watch only `{videoId, playing, position}`. WebSocket: ≤8 connections per user, ≤20 events / 10 s. Local SeaweedFS now checks signatures (`dev-s3.json`). Smoke passes (86). Not deployed; not checked against R2 or on a device. Old app builds can't upload until updated (raise `min_build` after the release).
 - 2026-11-28 — Own profile: a tap on the photo opens it full screen as uploaded (square, `ImageViewerScreen`: zoom, save); the Choose / Remove sheet is now on the camera badge only; with no photo, a tap on the letter picks one (`profile_screen.dart`). Not checked on a device.
 - 2026-11-28 — Back on Messages from another screen, the search no longer takes focus by itself and opens the keyboard: it is unfocused when the screen leaves or returns to the top, and focus given in the first 0.7 s after returning is dropped (`chats_screen.dart`, `focusNode` on `RoundField`). Not checked on a device.
@@ -21,11 +22,10 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 - 2026-11-27 — Profile tidied into one style: photo and name on top, then sections (label, white rounded card with 52 px rows, caption) for the code (tap copies), the name (field with an inline Save), Account (Google row with a check) and a red Sign out row; new `common/settings_section.dart` (`SettingsSection`, `SettingsRow`), used by `profile_screen.dart` and `AccountSection` (`account_options.dart`). Not checked on a device.
 - 2026-11-27 — Messages: "Search chats..." field is now the shared `RoundField` (same look and height as message search, clear button) instead of its own `_SearchField` (`chats_screen.dart`). Not checked on a device.
 - 2026-11-27 — One back button everywhere: `CustomAppBar(showBackButton: true)` now draws the chat's edge tab (title and actions lined up with it, optional `bottom` for tabs), so New chat, Create chat, Profile, Phone get it; App colors and Media moved from plain `AppBar` to it. The photo viewer's close and the crop editor's Cancel stay (`custom_app_bar.dart`, `app_colors_screen.dart`, `chat_media_screen.dart`). Not checked on a device.
-- 2026-11-27 — New message screen gets message search's top: the chat's back tab and the rounded field (with Paste while empty), now shared as `EdgeFieldBar` / `RoundField` in `common/round_field.dart` (`find_person_screen.dart`, `message_search_screen.dart`). Not checked on a device.
 
 ## Done
 
-- 2026-11-26…27 (from Recent changes): Google-only sign-in, no anonymous
+- 2026-11-26…27 (from Recent changes): the New message screen's search top (`EdgeFieldBar`); Google-only sign-in, no anonymous
   accounts (app and backend), sign out; personal 8-character codes and
   direct chats (migrations 0005–0006); profile photos and the photo crop
   editor; offline cache and outbox with `clientId` against double
@@ -62,9 +62,15 @@ Newest first, one line per task (see the rule in `CLAUDE.md`).
 
 ## Planned / ideas
 
-- Security, left from the 2026-11-28 review: SSH without passwords on
-  the server, database backups copied off the server, Firebase App Check,
-  the Vimeo web view kept on Vimeo; maybe the owner approving new members.
+- Security, left from the 2026-11-28 review: database backups copied off
+  the server (Daniel: not now); maybe the owner approving new members.
+- Firebase App Check, at the release (needs Google Play and the own
+  signing key; App Attest on iPhone). Plan agreed 2026-11-28: the app turns
+  it on only with `--dart-define=APP_CHECK=true` (plain builds don't), the
+  token goes in a header from `ApiClient`; the backend checks it (Google's
+  keys, like sign-in) under `APP_CHECK=off|log|enforce` in `.env`, `off` by
+  default. Rollout: register the apps in the console (Daniel), try the
+  debug provider, build with the flag, `log` first, then `enforce`.
   After the release with signed uploads, raise `min_build`.
 - Profiles, next: more than photo and name (bio, a Message button for
   group members, shared media), maybe opened straight from a direct
